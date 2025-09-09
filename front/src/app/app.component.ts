@@ -19,7 +19,7 @@ import { PingService } from './services/ping.service';
 export class AppComponent implements OnInit {
   response: any = null;
 
-  constructor(private pingService: PingService, private ngZone: NgZone) {}
+  constructor(private pingService: PingService, private ngZone: NgZone) { }
 
   ngOnInit() {
     this.doPing();
@@ -33,7 +33,7 @@ export class AppComponent implements OnInit {
         console.error('Erreur complète :', err); // pour debugger
         this.response = 'Erreur : impossible de joindre le serveur → ' + (err.message || JSON.stringify(err));
       })
-      
+
     });
   }
 }
