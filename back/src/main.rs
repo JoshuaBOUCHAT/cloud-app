@@ -5,15 +5,20 @@ use actix_web::{
     rt::time::sleep,
     web::{self, get},
 };
+use bb8_redis::RedisConnectionManager;
 use serde::Serialize;
 pub mod models;
 pub mod services;
 pub mod shared;
 
+use redis::aio;
+
 #[derive(Serialize)]
 struct PingResponse {
     message: String,
 }
+
+const RESET: bool = false;
 
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions, pool::PoolConnection};
 
@@ -25,6 +30,18 @@ static DB_POOL: LazyLock<Pool<MySql>> = std::sync::LazyLock::new(|| {
         .connect_lazy(&std::env::var("DATABASE_URL").expect("DATABASE_URL not define !"))
         .expect("Can't connect to DB")
 });
+use tokio::runtime;
+
+// Redis pool global initialisé de manière synchrone
+static REDIS_POOL: LazyLock<bb8::Pool<RedisConnectionManager>> = LazyLock::new(|| {
+    // Runtime temporaire juste pour bloquer l'initialisation async
+    let manager = RedisConnectionManager::new("redis://redis/").unwrap();
+    let rt = runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("can't build runtime for creating redis");
+    rt.block_on(async { bb8::Pool::builder().build(manager).await.unwrap() })
+});
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -35,7 +52,11 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Can't connect to DB");
 
-    up_all_table(&pool)
+    if RESET {
+        down_all_table().await.expect("down all table failed");
+    }
+
+    up_all_table()
         .await
         .expect("error while uping all the tables !");
 
@@ -68,8 +89,13 @@ async fn handle_ping() -> impl Responder {
     };
     HttpResponse::Ok().json(response)
 }
-async fn up_all_table(conn: &Pool<MySql>) -> Result<(), Box<dyn std::error::Error>> {
-    User::up(conn).await?;
+async fn up_all_table() -> Result<(), Box<dyn std::error::Error>> {
+    User::up().await?;
+
+    Ok(())
+}
+async fn down_all_table() -> Result<(), Box<dyn std::error::Error>> {
+    User::down().await?;
 
     Ok(())
 }
