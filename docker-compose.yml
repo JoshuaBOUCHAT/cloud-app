@@ -5,9 +5,10 @@ services:
     volumes:
       - ./back:/app
     working_dir: /app
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: "mysql://root:root@database:3306/mydb"
-
+      - DATABASE_URL=mysql://root:root@database:3306/mydb
 
     command: cargo watch -x run
     expose:
@@ -46,6 +47,9 @@ services:
       MYSQL_DATABASE: mydb
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./back:/app
+    ports:
+      - "3306:3306"
 
   nginx:
     image: nginx:alpine

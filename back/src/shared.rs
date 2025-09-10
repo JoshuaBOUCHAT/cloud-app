@@ -1,12 +1,9 @@
-use sqlx::Executor;
-use sqlx::mysql::MySqlPoolOptions;
+use sqlx::{Executor, MySql, Pool, mysql, pool::PoolConnection};
 
+use async_trait::async_trait;
 use std::error::Error;
 
 pub trait SQLable {
-    type DB;
-    async fn up<'c, E>(executor: E) -> Result<(), Box<dyn Error>>
-    where
-        E: Executor<'c, Database = Self::DB>;
-    fn down() {}
+    async fn up<'a>(conn: &'a Pool<MySql>) -> Result<(), Box<dyn Error>>;
+    async fn down<'a>(conn: &'a Pool<MySql>) -> Result<(), Box<dyn Error>>;
 }

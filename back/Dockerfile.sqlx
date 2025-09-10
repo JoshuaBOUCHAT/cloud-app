@@ -1,0 +1,7 @@
+FROM rust:latest
+
+# Installer sqlx-cli (version qui correspond à ta version de sqlx = 0.8.x)
+RUN cargo install sqlx-cli --features mysql
+
+# Monter ton projet
+WORKDIR /app

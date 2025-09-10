@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use chrono::NaiveDateTime;
-use sqlx::{MySql, Pool, query};
+use sqlx::{Executor, MySql, Pool, pool::PoolConnection, query};
+
+use std::error::Error;
+
+use async_trait::async_trait;
 
 use crate::shared::SQLable;
 
@@ -13,24 +17,31 @@ pub struct User {
     pub phone_number: Option<String>,
     pub verified_at: Option<NaiveDateTime>,
 }
+
 impl SQLable for User {
-    type DB = Pool<MySql>;
-    async fn up<'c, E>(executor: E) -> Result<(), Box<dyn std::error::Error>>
-    where
-        E: sqlx::Executor<'c, Database = Self::DB>,
-    {
+    async fn up<'a>(conn: &'a Pool<MySql>) -> Result<(), Box<dyn Error>> {
         query!(
-            "CREATE TABLE users(
-            id INT AUTO_INCREMENT,
-            email VARCHAR(100) ,
-            password VARCHAR(100) ,
-            phone_number VARCHAR(20) ,
-            verified_at DATETIME,
-            admin BOOLEAN,
-            PRIMARY KEY(id)
-         );"
-        ).
+            r#"
+            CREATE TABLE IF NOT EXISTS users(
+                id INT AUTO_INCREMENT,
+                email VARCHAR(100),
+                password VARCHAR(100),
+                phone_number VARCHAR(20),
+                verified_at DATETIME,
+                admin BOOLEAN,
+                PRIMARY KEY(id)
+            );
+            "#
+        )
+        .execute(conn)
+        .await?;
+        Ok(())
     }
 
-    fn down() {}
+    async fn down<'a>(conn: &'a Pool<MySql>) -> Result<(), Box<dyn Error>> {
+        query!(r#"DROP TABLE IF EXISTS users;"#)
+            .execute(conn)
+            .await?;
+        Ok(())
+    }
 }

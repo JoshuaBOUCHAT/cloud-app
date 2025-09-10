@@ -1,4 +1,4 @@
-use std::{fmt::Debug, time::Duration};
+use std::{env, fmt::Debug, sync::LazyLock, time::Duration};
 
 use actix_web::{
     App, HttpResponse, HttpServer, Responder,
@@ -15,17 +15,29 @@ struct PingResponse {
     message: String,
 }
 
-use sqlx::Executor;
-use sqlx::mysql::MySqlPoolOptions;
+use sqlx::{MySql, Pool, mysql::MySqlPoolOptions, pool::PoolConnection};
+
+use crate::{models::user_model::User, shared::SQLable};
+
+static DB_POOL: LazyLock<Pool<MySql>> = std::sync::LazyLock::new(|| {
+    MySqlPoolOptions::new()
+        .max_connections(6)
+        .connect_lazy(&std::env::var("DATABASE_URL").expect("DATABASE_URL not define !"))
+        .expect("Can't connect to DB")
+});
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     sleep(Duration::from_secs(5)).await;
     let pool = MySqlPoolOptions::new()
         .max_connections(6)
-        .connect(env!("DATABASE_URL"))
+        .connect(&std::env::var("DATABASE_URL").expect("DATABASE_URL not define !"))
         .await
         .expect("Can't connect to DB");
+
+    up_all_table(&pool)
+        .await
+        .expect("error while uping all the tables !");
 
     let rows = sqlx::query("SHOW TABLES")
         .fetch_all(&pool)
@@ -55,4 +67,9 @@ async fn handle_ping() -> impl Responder {
         message: "pong".to_string(),
     };
     HttpResponse::Ok().json(response)
+}
+async fn up_all_table(conn: &Pool<MySql>) -> Result<(), Box<dyn std::error::Error>> {
+    User::up(conn).await?;
+
+    Ok(())
 }
