@@ -11,14 +11,12 @@ pub mod models;
 pub mod services;
 pub mod shared;
 
-use redis::aio;
-
 #[derive(Serialize)]
 struct PingResponse {
     message: String,
 }
 
-const RESET: bool = false;
+const RESET: bool = true;
 
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions, pool::PoolConnection};
 
