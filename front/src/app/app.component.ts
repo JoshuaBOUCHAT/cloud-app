@@ -6,15 +6,7 @@ import { PingService } from './services/ping.service';
   selector: 'app-root',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <h1>Test API Ping</h1>
-    <button (click)="doPing()">Re-ping</button>
-
-    <p *ngIf="response; else loading">{{ response | json }} hello</p>
-    <ng-template #loading>
-      <p>Chargement...</p>
-    </ng-template>
-  `
+  templateUrl:"./app.component.html"
 })
 export class AppComponent implements OnInit {
   response: any = null;

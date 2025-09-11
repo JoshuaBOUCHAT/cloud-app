@@ -3,7 +3,7 @@ use std::{sync::LazyLock, time::Duration};
 use actix_web::{
     App, HttpResponse, HttpServer, Responder,
     rt::time::sleep,
-    web::{self, get},
+    web::{self, get, post},
 };
 use bb8_redis::RedisConnectionManager;
 use serde::Serialize;
@@ -20,7 +20,11 @@ const RESET: bool = true;
 
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions, pool::PoolConnection};
 
-use crate::{models::user_model::User, shared::SQLable};
+use crate::{
+    models::{auth_model::Claims, user_model::User},
+    services::auth_service,
+    shared::SQLable,
+};
 
 static DB_POOL: LazyLock<Pool<MySql>> = std::sync::LazyLock::new(|| {
     MySqlPoolOptions::new()
@@ -74,7 +78,9 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(pool_data.clone())
-            .service(web::scope("").route("/ping", get().to(handle_ping)))
+            .service(web::scope("/public").route("/ping", get().to(handle_ping)))
+            .service(web::scope("").route("/handle_connected", get().to(handle_connected)))
+            .service(web::scope("/auth").route("/login", post().to(auth_service::login)))
     })
     .bind(("0.0.0.0", 8080))?
     .run()
@@ -96,4 +102,12 @@ async fn down_all_table() -> Result<(), Box<dyn std::error::Error>> {
     User::down().await?;
 
     Ok(())
+}
+async fn handle_connected(claim: Claims) -> HttpResponse {
+    let message = if claim.admin {
+        format!("Hi admin n°{}", claim.id)
+    } else {
+        format!("Hi user n°{}", claim.id)
+    };
+    HttpResponse::Ok().json(message)
 }

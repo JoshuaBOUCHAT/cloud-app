@@ -1,3 +1,4 @@
+use actix_web::{FromRequest, HttpRequest, dev::Payload};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
@@ -63,5 +64,34 @@ impl TryFrom<&Claims> for Token {
         let header = Header::new(Algorithm::HS256);
         let token_str = encode(&header, value, &EncodingKey::from_secret(SECRET))?;
         Ok(Token { token_str })
+    }
+}
+
+use futures_util::future::{Ready, ready};
+
+impl FromRequest for Claims {
+    type Error = actix_web::Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let auth_header = req
+            .headers()
+            .get("Authorization")
+            .and_then(|hv| hv.to_str().ok())
+            .map(|s| s.trim_start_matches("Bearer ").to_string());
+
+        let response = match auth_header {
+            Some(maybe_token_str) => match Claims::parse_and_validate(&maybe_token_str) {
+                Ok(claims) => Ok(claims),
+                Err(TokenError::Expired) => Err(actix_web::error::ErrorForbidden("Token expired")),
+                Err(TokenError::ParsingError(_)) => {
+                    Err(actix_web::error::ErrorUnauthorized("Invalid token"))
+                }
+            },
+            None => Err(actix_web::error::ErrorUnauthorized(
+                "Missing Authorization header",
+            )),
+        };
+        ready(response)
     }
 }
