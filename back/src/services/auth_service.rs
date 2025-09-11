@@ -5,7 +5,7 @@ use crate::models::auth_model::{Claims, Token};
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginInfo {
-    mail: String,
+    email: String,
     password: String,
 }
 
@@ -18,7 +18,7 @@ struct LoginResponse {
 
 pub async fn login(login_info: web::Json<LoginInfo>) -> HttpResponse {
     /*Des verification */
-    if login_info.mail != "joshuabouchat@gmail.com" && login_info.password != "root" {
+    if login_info.email != "joshuabouchat@gmail.com" && login_info.password != "root" {
         return HttpResponse::Unauthorized().json("identifiant invalide");
     }
 

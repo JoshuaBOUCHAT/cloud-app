@@ -1,12 +1,13 @@
 import { Component, OnInit, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PingService } from './services/ping.service';
+import { LoginComponent } from "./components/login/login.component";
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
-  templateUrl:"./app.component.html"
+  imports: [CommonModule, LoginComponent],
+  templateUrl: "./app.component.html"
 })
 export class AppComponent implements OnInit {
   response: any = null;

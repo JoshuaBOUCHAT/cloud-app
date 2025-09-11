@@ -18,7 +18,7 @@ struct PingResponse {
 
 const RESET: bool = true;
 
-use sqlx::{MySql, Pool, mysql::MySqlPoolOptions, pool::PoolConnection};
+use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
 
 use crate::{
     models::{auth_model::Claims, user_model::User},
@@ -78,9 +78,9 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(pool_data.clone())
-            .service(web::scope("/public").route("/ping", get().to(handle_ping)))
-            .service(web::scope("").route("/handle_connected", get().to(handle_connected)))
             .service(web::scope("/auth").route("/login", post().to(auth_service::login)))
+            .service(web::scope("/public").route("/ping", get().to(handle_ping)))
+            .service(web::scope("").route("/login_test", post().to(login_test)))
     })
     .bind(("0.0.0.0", 8080))?
     .run()
@@ -103,7 +103,7 @@ async fn down_all_table() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-async fn handle_connected(claim: Claims) -> HttpResponse {
+async fn login_test(claim: Claims) -> HttpResponse {
     let message = if claim.admin {
         format!("Hi admin n°{}", claim.id)
     } else {
