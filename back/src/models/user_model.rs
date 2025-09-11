@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use sqlx::{MySql, Pool, query, query_as};
+use sqlx::{query, query_as};
 use time::PrimitiveDateTime;
 
 use std::error::Error;

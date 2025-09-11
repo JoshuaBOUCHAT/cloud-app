@@ -1,4 +1,4 @@
-use std::{env, fmt::Debug, sync::LazyLock, time::Duration};
+use std::{sync::LazyLock, time::Duration};
 
 use actix_web::{
     App, HttpResponse, HttpServer, Responder,
