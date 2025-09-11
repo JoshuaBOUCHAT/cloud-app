@@ -33,12 +33,17 @@ export class AuthService {
     );
   }
   login_test(): Observable<string> {
-    return this.http.post<string>("/api/login_test", {})
-      .pipe(tap(res => {
+    const token = localStorage.getItem('access_token');
+  
+    return this.http.post<string>(
+      "/api/login_test",
+      {}
+    ).pipe(
+      tap(res => {
         console.log(res);
-      }));
+      })
+    );
   }
-
   getAccessToken(): string | null {
     return localStorage.getItem('access_token');
   }
