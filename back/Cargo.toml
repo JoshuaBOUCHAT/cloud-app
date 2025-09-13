@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix-session = { version = "0.11.0", features = ["cookie-session"] }
 actix-web = { version = "4.11.0", features = ["rustls"] }
+argon2 = "0.5.3"
 async-trait = "0.1.89"
 bb8 = "0.9.0"
 bb8-redis = "0.24.0"
@@ -16,7 +18,9 @@ lettre = { version = "0.11.18", features = [
     "rustls",
     "rustls-platform-verifier",
 ] }
+password-hash = "0.5.0"
 redis = { version = "0.32.5", features = ["aio"] }
+regex = "1.11.2"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 sqlx = { version = "0.8.6", features = [
