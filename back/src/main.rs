@@ -16,7 +16,7 @@ struct PingResponse {
     message: String,
 }
 
-const RESET: bool = true;
+const RESET: bool = false;
 
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
 
@@ -78,7 +78,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(pool_data.clone())
-            .service(web::scope("/oauth").route("/login", post().to(auth_service::login)))
+            .service(web::scope("/auth").route("/login", post().to(auth_service::login)))
             .service(web::scope("/public").route("/ping", get().to(handle_ping)))
             .service(web::scope("").route("/login_test", post().to(login_test)))
     })

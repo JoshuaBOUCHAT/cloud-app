@@ -1,3 +1,5 @@
+use actix_session::SessionExt;
+use actix_web::FromRequest;
 use serde::{Deserialize, Serialize};
 
 use sqlx::{query, query_as};
@@ -113,5 +115,15 @@ impl User {
         }
 
         Ok(Some(user))
+    }
+}
+impl FromRequest for User {
+    fn extract(req: &actix_web::HttpRequest) -> Self::Future {
+        let session = req.get_session();
+    }
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
     }
 }

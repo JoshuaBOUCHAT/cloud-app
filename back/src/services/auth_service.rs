@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::user_model::User;
 
+use std::sync::LazyLock;
+
 #[derive(Deserialize)]
 pub struct LoginCredential {
     email: String,
@@ -33,8 +35,6 @@ pub async fn login(session: Session, form: web::Json<LoginCredential>) -> HttpRe
     session.insert("user_id", user.id).unwrap();
     return HttpResponse::Ok().json("login successfull");
 }
-
-use std::sync::LazyLock;
 
 static EMAIL_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[\w\.-]+@[\w\.-]+\.\w{2,}$").unwrap());
