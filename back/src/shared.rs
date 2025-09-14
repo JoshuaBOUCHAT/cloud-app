@@ -1,5 +1,5 @@
 use crate::errors::AppResult;
-use regex::Regex;
+use fancy_regex::Regex;
 use std::sync::LazyLock;
 
 #[allow(async_fn_in_trait)]

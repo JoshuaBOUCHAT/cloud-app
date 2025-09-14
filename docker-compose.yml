@@ -6,9 +6,7 @@ services:
       - ./back:/app
     working_dir: /app
     env_file:
-      - .env
-    environment:
-      - DATABASE_URL=mysql://root:root@database:3306/mydb
+      - back.env
 
     command: cargo watch -x run
     expose:

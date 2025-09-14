@@ -2,10 +2,15 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
-interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  confirmPassword?: string; // optionnel côté frontend
 }
 
 @Injectable({
@@ -13,48 +18,28 @@ interface LoginResponse {
 })
 export class AuthService {
   private login_url = '/api/auth/login';
+  private register_url = '/api/auth/register';
 
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient) {}
 
-  login(email: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(this.login_url, {
-      email: email,
-      password: password
-    }).pipe(
+  /** Login utilisateur */
+  login(email: string, password: string): Observable<any> {
+    const payload: LoginPayload = { email, password };
+    return this.http.post<any>(this.login_url, payload).pipe(
       tap(res => {
-        // stocker les tokens dans localStorage/sessionStorage
-        localStorage.setItem('access_token', res.access_token);
-        localStorage.setItem('refresh_token', res.refresh_token);
-        // éventuellement stocker l'expiration pour gérer le refresh automatique
-        localStorage.setItem('access_token_exp',
-          (Date.now() + res.expires_in * 1000).toString()
-        );
+        // éventuellement stocker un token/session côté client si nécessaire
+        console.log('Login response:', res);
       })
     );
   }
-  login_test(): Observable<string> {
-    const token = localStorage.getItem('access_token');
-  
-    return this.http.post<string>(
-      "/api/login_test",
-      {}
-    ).pipe(
+
+  /** Register utilisateur */
+  register(email: string, password: string): Observable<any> {
+    const payload: RegisterPayload = { email, password };
+    return this.http.post<any>(this.register_url, payload).pipe(
       tap(res => {
-        console.log(res);
+        console.log('Register response:', res);
       })
     );
-  }
-  getAccessToken(): string | null {
-    return localStorage.getItem('access_token');
-  }
-
-  getRefreshToken(): string | null {
-    return localStorage.getItem('refresh_token');
-  }
-
-  logout() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('access_token_exp');
   }
 }

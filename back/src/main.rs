@@ -3,17 +3,17 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder,
     cookie::Key,
     middleware,
-    rt::time::sleep,
     web::{self, get, post},
 };
 use serde::Serialize;
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
-use std::{sync::LazyLock, time::Duration};
+use std::sync::LazyLock;
 
 use crate::{
     models::{auth_model::Claims, user_model::User},
     services::auth_service,
     shared::SQLable,
+    utils::redis_utils::{REDIS_POOL, init_redis_pool},
 };
 
 pub mod errors;
@@ -44,6 +44,8 @@ async fn main() -> std::io::Result<()> {
         .connect(&std::env::var("DATABASE_URL").expect("DATABASE_URL not define !"))
         .await
         .expect("Can't connect to DB");
+
+    init_redis_pool().await;
 
     if RESET {
         down_all_table().await.expect("down all table failed");

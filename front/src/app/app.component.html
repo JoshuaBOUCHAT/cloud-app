@@ -1,8 +1,4 @@
-<h1>Test API Ping</h1>
-<button (click)="doPing()">Re-ping</button>
-
-<p *ngIf="response; else loading">{{ response | json }} hello</p>
-<ng-template #loading>
-    <p>Chargement...</p>
-</ng-template>
-<app-login></app-login>
+<div class="app-container"
+    style="min-height:100vh; display:flex; justify-content:center; align-items:center; background:#f5f5f5;">
+    <router-outlet></router-outlet>
+</div>

@@ -1,6 +1,5 @@
 use actix_session::Session;
 use actix_web::{HttpResponse, web};
-use redis::{FromRedisValue, RedisResult, RedisWrite, ToRedisArgs};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -56,11 +55,11 @@ pub async fn login(session: Session, form: web::Json<LoginCredential>) -> AppRes
 }
 
 fn is_valid_email(email: &str) -> bool {
-    EMAIL_RE.is_match(email)
+    EMAIL_RE.is_match(email).unwrap()
 }
 
 fn is_valid_password(password: &str) -> bool {
-    PASSWORD_RE.is_match(password)
+    PASSWORD_RE.is_match(password).unwrap()
 }
 pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
     let verify_url = format!("https://localhost/verify?token={}", token);

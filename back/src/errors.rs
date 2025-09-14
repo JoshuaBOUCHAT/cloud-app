@@ -13,7 +13,7 @@ pub enum AppError {
     Unauthorized,
     #[error("Validation error: {0}")]
     Validation(String),
-    #[error("Validation error: {0}")]
+    #[error("Database error: {0}")]
     Database(String),
     #[error("Cache error: {0}")]
     Cache(String),
@@ -26,6 +26,7 @@ pub enum AppError {
 }
 impl From<sqlx::error::Error> for AppError {
     fn from(value: sqlx::error::Error) -> Self {
+        eprintln!("Database error:{value}");
         AppError::Database(
             value
                 .as_database_error()
@@ -47,17 +48,20 @@ impl From<RedisError> for AppError {
 }
 impl From<lettre::transport::smtp::Error> for AppError {
     fn from(value: lettre::transport::smtp::Error) -> Self {
+        eprintln!("error:{}", value);
         Self::Mail(value.to_string())
     }
 }
 
 impl From<lettre::error::Error> for AppError {
     fn from(value: lettre::error::Error) -> Self {
+        eprintln!("error:{}", value);
         Self::Mail(value.to_string())
     }
 }
 impl From<serde_json::Error> for AppError {
-    fn from(_value: serde_json::Error) -> Self {
+    fn from(value: serde_json::Error) -> Self {
+        eprintln!("error:{}", value);
         Self::Internal
     }
 }

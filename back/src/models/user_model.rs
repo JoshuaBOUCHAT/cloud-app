@@ -1,12 +1,11 @@
 use actix_session::SessionExt;
 use actix_web::FromRequest;
-use redis::{FromRedisValue, RedisResult, RedisWrite, ToRedisArgs};
 use serde::{Deserialize, Serialize};
 
 use sqlx::{query, query_as};
 use time::{OffsetDateTime, PrimitiveDateTime};
 
-use std::{error::Error, pin::Pin};
+use std::pin::Pin;
 
 use actix_web::Error as ActixError;
 
@@ -83,14 +82,8 @@ impl User {
         let maybe_user = query_as!(User, r#"SELECT * FROM users WHERE id=? LIMIT 1"#, id)
             .fetch_optional(&*DB_POOL)
             .await?;
-
-        if let Some(ref user) = maybe_user {
-            // clone uniquement pour le spawn
-            let user_to_cache = user.clone();
-            actix_rt::spawn(async move {
-                let _ =
-                    redis_set_ex(&format!("user:{}", user_to_cache.id), &user_to_cache, 3600).await;
-            });
+        if let Some(user) = &maybe_user {
+            let _ = redis_set_ex(&format!("user:{}", user.id), user, 3600).await;
         }
 
         Ok(maybe_user)
@@ -108,15 +101,17 @@ impl User {
         let err = match db_response {
             Ok(response) => {
                 let user_id = response.last_insert_id() as i32;
-                actix_rt::spawn(async move {
-                    if let Ok(Some(user)) = Self::get(user_id).await {
-                        let _ = redis_set_ex(&format!("user:{}", user.id), &user, 3600).await;
-                    }
-                });
+                let maybe_user = User::get(user_id).await?;
+                if let Some(user) = maybe_user {
+                    let _ = redis_set_ex(&format!("user:{}", user.id), &user, 3600).await;
+                }
+
                 return Ok(user_id);
             }
+
             Err(err) => err,
         };
+
         if let sqlx::Error::Database(db_err) = &err {
             if db_err.code().as_deref() == Some("1062") {
                 // 1062 = Duplicate entry
