@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix-rt = "2.11.0"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
 actix-web = { version = "4.11.0", features = ["rustls"] }
 argon2 = "0.5.3"
@@ -30,6 +31,7 @@ sqlx = { version = "0.8.6", features = [
     "chrono",
     "time",
 ] }
+thiserror = "2.0.16"
 time = { version = "0.3.43", features = ["serde"] }
 tokio = "1.47.1"
 uuid = { version = "1.18.1", features = ["v4"] }
