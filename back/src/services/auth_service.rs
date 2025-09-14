@@ -137,38 +137,9 @@ impl VerifyValue {
     }
 }
 
-impl ToRedisArgs for VerifyValue {
-    fn write_redis_args<W: ?Sized>(&self, out: &mut W)
-    where
-        W: RedisWrite,
-    {
-        let json = serde_json::to_string(self).expect("User serialization failed");
-        out.write_arg(json.as_bytes());
-    }
-}
-
-impl FromRedisValue for VerifyValue {
-    fn from_redis_value(v: &redis::Value) -> RedisResult<Self> {
-        let s: String = redis::from_redis_value(v)?;
-        let user: Self = serde_json::from_str(&s).map_err(|e| {
-            redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "Failed to deserialize User from JSON",
-                e.to_string(),
-            ))
-        })?;
-        Ok(user)
-    }
-}
-
-pub async fn verify(token: web::Query<VerifyToken>) -> HttpResponse {
-    let verify_value: VerifyValue = match redis_get(&token.token).await {
-        Err(err) => {
-            eprintln!("Error occurs during verify process:\n{err}");
-            return HttpResponse::InternalServerError().finish();
-        }
-        Ok(None) => return HttpResponse::NotFound().json("verification link is wrong or expired "),
-        Ok(Some(val)) => val,
+pub async fn verify(token: web::Query<VerifyToken>) -> AppResult<HttpResponse> {
+    let Some(verify_value): Option<VerifyValue> = redis_get(&token.token).await? else {
+        return Ok(HttpResponse::NotFound().json("verification link is wrong or expired "));
     };
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -177,26 +148,15 @@ pub async fn verify(token: web::Query<VerifyToken>) -> HttpResponse {
     let user_id = verify_value.user_id;
     if now > verify_value.exp {
         //gérer le token expired
-        let _ = redis_del(&token.token).await;
-        let user = match User::get(user_id).await {
-            Ok(Some(user)) => user,
-            Ok(None) => return HttpResponse::NotFound().json("User not found"),
-            Err(err) => {
-                eprintln!("Error happen:{err}\n");
-                return HttpResponse::InternalServerError().json("DB error");
-            }
+        redis_del(&token.token).await?;
+        let Some(user) = User::get(user_id).await? else {
+            return Ok(HttpResponse::NotFound().json("User not found"));
         };
-        if let Err(err) = create_verification_token_and_send_mail(user_id, &user.email).await {
-            eprintln!("Error happen:{err}");
-            return HttpResponse::InternalServerError().finish();
-        }
+        create_verification_token_and_send_mail(user_id, &user.email).await?;
 
-        return HttpResponse::Unauthorized().json("token expired");
+        return Err(AppError::Unauthorized);
     }
 
-    if let Err(err) = User::verify_user(user_id).await {
-        eprintln!("Error occurs when updating verification for user {user_id}:\n{err}");
-        return HttpResponse::InternalServerError().json("error while validating account");
-    }
-    HttpResponse::Ok().json("account validated")
+    User::verify_user(user_id).await?;
+    Ok(HttpResponse::Ok().json("account validated"))
 }

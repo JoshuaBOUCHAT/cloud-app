@@ -31,30 +31,6 @@ pub struct User {
     pub admin: u8,
 }
 
-impl ToRedisArgs for User {
-    fn write_redis_args<W: ?Sized>(&self, out: &mut W)
-    where
-        W: RedisWrite,
-    {
-        let json = serde_json::to_string(self).expect("User serialization failed");
-        out.write_arg(json.as_bytes());
-    }
-}
-
-impl FromRedisValue for User {
-    fn from_redis_value(v: &redis::Value) -> RedisResult<Self> {
-        let s: String = redis::from_redis_value(v)?;
-        let user: User = serde_json::from_str(&s).map_err(|e| {
-            redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "Failed to deserialize User from JSON",
-                e.to_string(),
-            ))
-        })?;
-        Ok(user)
-    }
-}
-
 impl SQLable for User {
     async fn up() -> AppResult<()> {
         query!(
@@ -100,7 +76,7 @@ fn verify_password(password: &str, hash: &str) -> bool {
 
 impl User {
     pub async fn get(id: i32) -> AppResult<Option<Self>> {
-        if let Some(user) = redis_get(id).await? {
+        if let Some(user) = redis_get(&id).await? {
             return Ok(Some(user));
         }
 
@@ -113,7 +89,7 @@ impl User {
             let user_to_cache = user.clone();
             actix_rt::spawn(async move {
                 let _ =
-                    redis_set_ex(format!("user:{}", user_to_cache.id), user_to_cache, 3600).await;
+                    redis_set_ex(&format!("user:{}", user_to_cache.id), &user_to_cache, 3600).await;
             });
         }
 
@@ -134,7 +110,7 @@ impl User {
                 let user_id = response.last_insert_id() as i32;
                 actix_rt::spawn(async move {
                     if let Ok(Some(user)) = Self::get(user_id).await {
-                        let _ = redis_set_ex(format!("user:{}", user.id), user, 3600).await;
+                        let _ = redis_set_ex(&format!("user:{}", user.id), &user, 3600).await;
                     }
                 });
                 return Ok(user_id);

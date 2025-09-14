@@ -56,6 +56,11 @@ impl From<lettre::error::Error> for AppError {
         Self::Mail(value.to_string())
     }
 }
+impl From<serde_json::Error> for AppError {
+    fn from(_value: serde_json::Error) -> Self {
+        Self::Internal
+    }
+}
 
 #[derive(Serialize)]
 struct ErrorResponse {
