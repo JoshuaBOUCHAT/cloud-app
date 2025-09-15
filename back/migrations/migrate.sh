@@ -1,1 +1,1 @@
-mysql -h 127.0.0.1 -P 3306 -u root -p mydb < migrations/create_users.sql
+mysql -h 127.0.0.1 -P 3306 -u root -p mydb < create_users.sql

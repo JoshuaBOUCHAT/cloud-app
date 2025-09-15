@@ -62,7 +62,7 @@ fn is_valid_password(password: &str) -> bool {
     PASSWORD_RE.is_match(password).unwrap()
 }
 pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
-    let verify_url = format!("https://localhost/verify?token={}", token);
+    let verify_url = format!("https://localhost/api/auth/verify?token={}", token);
 
     let html_template = include_str!("../templates/verification_email.html");
     let html = html_template.replace("__VERIFY_URL__", &verify_url);
@@ -136,10 +136,12 @@ impl VerifyValue {
     }
 }
 
-pub async fn verify(token: web::Query<VerifyToken>) -> AppResult<HttpResponse> {
+pub async fn verify(session: Session, token: web::Query<VerifyToken>) -> AppResult<HttpResponse> {
+    eprintln!("here ! heheh");
     let Some(verify_value): Option<VerifyValue> = redis_get(&token.token).await? else {
         return Ok(HttpResponse::NotFound().json("verification link is wrong or expired "));
     };
+    eprintln!("Token is valide");
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -157,5 +159,18 @@ pub async fn verify(token: web::Query<VerifyToken>) -> AppResult<HttpResponse> {
     }
 
     User::verify_user(user_id).await?;
+    session.insert("verified", true).unwrap();
     Ok(HttpResponse::Ok().json("account validated"))
+}
+pub async fn logout(session: Session) -> HttpResponse {
+    let _ = session.remove("user_id");
+    let _ = session.remove("verified");
+    HttpResponse::Ok().json("Perfectly logout")
+}
+pub async fn logout_and_redirect(session: Session) -> HttpResponse {
+    let _ = session.remove("user_id");
+    let _ = session.remove("verified");
+    HttpResponse::TemporaryRedirect()
+        .append_header(("Location", "/auth"))
+        .finish()
 }
