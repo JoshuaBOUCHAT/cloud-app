@@ -47,14 +47,6 @@ async fn main() -> std::io::Result<()> {
 
     init_redis_pool().await;
 
-    if RESET {
-        down_all_table().await.expect("down all table failed");
-    }
-
-    up_all_table()
-        .await
-        .expect("error while uping all the tables !");
-
     let rows = sqlx::query("SHOW TABLES")
         .fetch_all(&pool)
         .await
@@ -77,7 +69,7 @@ async fn main() -> std::io::Result<()> {
                 )
                 .cookie_secure(true) // HTTPS seulement
                 .cookie_http_only(true) // pas accessible via JS
-                .cookie_same_site(actix_web::cookie::SameSite::Lax) // protège contre CSRF basique
+                .cookie_same_site(actix_web::cookie::SameSite::Strict) // protège contre CSRF basique
                 .session_lifecycle(
                     actix_session::config::PersistentSession::default()
                         .session_ttl(time::Duration::days(7)), // 7 jours
