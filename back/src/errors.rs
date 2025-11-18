@@ -5,20 +5,22 @@ use redis::RedisError;
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::constants::messages::SERIALIZATION_FAILED;
+
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("Unauthorized")]
-    Unauthorized,
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
     #[error("Validation error: {0}")]
     Validation(String),
     #[error("Database error: {0}")]
     Database(String),
     #[error("Cache error: {0}")]
     Cache(String),
-    #[error("Internal server error")]
-    Internal,
+    #[error("Internal server error: {0}")]
+    Internal(String),
     #[error("Mail sending error: {0}")]
     Mail(String),
     #[error("Conflict: {0}")]
@@ -62,7 +64,13 @@ impl From<lettre::error::Error> for AppError {
 impl From<serde_json::Error> for AppError {
     fn from(value: serde_json::Error) -> Self {
         eprintln!("error:{}", value);
-        Self::Internal
+        Self::Internal("".to_string())
+    }
+}
+impl From<jsonwebtoken::errors::Error> for AppError {
+    fn from(value: jsonwebtoken::errors::Error) -> Self {
+        eprintln!("Intenal error: {value}");
+        Self::Internal(SERIALIZATION_FAILED.to_string())
     }
 }
 
@@ -84,11 +92,11 @@ impl ResponseError for AppError {
     fn status_code(&self) -> actix_web::http::StatusCode {
         use actix_web::http::StatusCode;
         match self {
-            AppError::Unauthorized => StatusCode::UNAUTHORIZED,
+            AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
             AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Cache(_) => StatusCode::SERVICE_UNAVAILABLE,
-            AppError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Mail(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Conflict(_) => StatusCode::CONFLICT,
         }

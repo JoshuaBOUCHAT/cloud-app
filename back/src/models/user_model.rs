@@ -1,19 +1,18 @@
-use actix_session::SessionExt;
-use actix_web::FromRequest;
+use actix_web::HttpResponse;
 use serde::{Deserialize, Serialize};
 
 use sqlx::{query, query_as};
 use time::{OffsetDateTime, PrimitiveDateTime};
 
-use std::pin::Pin;
-
-use actix_web::Error as ActixError;
-
 use crate::{
     DB_POOL,
+    auth::{
+        auth_extractor::TryFromClaim,
+        auth_service::LoginCredential,
+        bearer_manager::{Claims, Token},
+    },
+    constants::messages::{EMAIL_ALREADY_EXIST, USER_NOT_FOUND, USER_NOT_VERIFIED},
     errors::{AppError, AppResult},
-    services::auth_service::LoginCredential,
-    shared::SQLable,
     utils::redis_utils::{redis_get, redis_set_ex},
 };
 
@@ -28,34 +27,6 @@ pub struct User {
     pub phone_number: Option<String>,
     pub verified_at: Option<PrimitiveDateTime>,
     pub admin: u8,
-}
-
-impl SQLable for User {
-    async fn up() -> AppResult<()> {
-        query!(
-            r#"
-                CREATE TABLE IF NOT EXISTS users(
-                    id INT AUTO_INCREMENT,
-                    email VARCHAR(100) NOT NULL UNIQUE,
-                    password VARCHAR(100) NOT NULL,
-                    phone_number VARCHAR(20),
-                    verified_at DATETIME,
-                    admin TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
-                    PRIMARY KEY(id)
-                );
-                "#
-        )
-        .execute(&*DB_POOL)
-        .await?;
-        Ok(())
-    }
-
-    async fn down() -> AppResult<()> {
-        query!(r#"DROP TABLE IF EXISTS users;"#)
-            .execute(&*DB_POOL)
-            .await?;
-        Ok(())
-    }
 }
 
 fn hash_password(password: &str) -> String {
@@ -115,7 +86,7 @@ impl User {
         if let sqlx::Error::Database(db_err) = &err {
             if db_err.code().as_deref() == Some("1062") {
                 // 1062 = Duplicate entry
-                return Err(AppError::Conflict("Email already exists".to_string()));
+                return Err(AppError::Conflict(String::from(EMAIL_ALREADY_EXIST)));
             }
         }
         // Pour les autres erreurs
@@ -157,8 +128,25 @@ impl User {
 
         Ok(())
     }
+    pub async fn is_valide_user(id: i32) -> AppResult<bool> {
+        Ok(Self::get(id).await?.is_some_and(|u| u.is_verified()))
+    }
+    ///Only return a token if the user have been verified
+    pub async fn get_token(id: i32) -> AppResult<Option<Token>> {
+        let maybe_user = Self::get(id).await?;
+        let Some(user) = maybe_user else {
+            return Err(AppError::Internal(USER_NOT_FOUND.to_string()));
+        };
 
-    async fn actix_response(user_id: i32) -> Result<Self, ActixError> {
+        if user.is_verified() {
+            let new_claims = Claims::new_user_claim(id, true);
+            return Ok(Some(Token::try_from(&new_claims)?));
+        } else {
+            Ok(None)
+        }
+    }
+
+    /*async fn actix_response(user_id: i32) -> Result<Self, ActixError> {
         let maybe_user = match Self::get(user_id).await {
             Ok(maybe_user) => maybe_user,
             Err(_) => {
@@ -169,36 +157,32 @@ impl User {
         };
         let Some(user) = maybe_user else { todo!() };
         if user.verified_at.is_none() {
-            return Err(actix_web::error::ErrorUnauthorized(
-                "The user account has not been verified",
-            ));
+            return Err(actix_web::error::ErrorUnauthorized(USER_NOT_VERIFIED));
         }
         Ok(user)
+    }*/
+}
+impl User {
+    pub fn is_admin(&self) -> bool {
+        self.admin != 0
+    }
+    pub fn is_verified(&self) -> bool {
+        self.verified_at.is_some()
     }
 }
 
-impl FromRequest for User {
-    type Error = ActixError;
-    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+use async_trait::async_trait;
 
-    fn from_request(
-        req: &actix_web::HttpRequest,
-        _payload: &mut actix_web::dev::Payload,
-    ) -> Self::Future {
-        let session = req.get_session();
-
-        Box::pin(async move {
-            // récupérer l'id depuis la session
-            let Some(user_id) = session
-                .get::<i32>("user_id")
-                .map_err(|_| actix_web::error::ErrorUnauthorized("Invalid session"))?
-            else {
-                return Err(actix_web::error::ErrorUnauthorized("User not logged in"));
-            };
-
-            // utiliser ta fonction async
-            let user = User::actix_response(user_id).await?;
+#[async_trait]
+impl TryFromClaim for User {
+    async fn try_from_claim(claims: &Claims) -> Result<Self, actix_web::Error> {
+        if claims.is_user_verified {
+            let user = Self::get(claims.user_id)
+                .await?
+                .ok_or_else(|| AppError::Internal(USER_NOT_FOUND.to_string()))?;
             Ok(user)
-        })
+        } else {
+            Err(AppError::Unauthorized(USER_NOT_VERIFIED.to_string()).into())
+        }
     }
 }

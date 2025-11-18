@@ -2,7 +2,6 @@ use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 use actix_web::{
     App, HttpResponse, HttpServer, Responder,
     cookie::Key,
-    middleware,
     web::{self, get, post},
 };
 use serde::Serialize;
@@ -10,14 +9,14 @@ use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
 use std::sync::LazyLock;
 
 use crate::{
-    models::{auth_model::Claims, user_model::User},
-    services::auth_service,
-    shared::SQLable,
+    auth::{auth_extractor::FromClaim, auth_service, middlewares},
+    models::user_model::User,
     utils::redis_utils::{REDIS_POOL, init_redis_pool},
 };
 
+pub mod auth;
+pub mod constants;
 pub mod errors;
-pub mod middlewares;
 pub mod models;
 pub mod services;
 pub mod shared;
@@ -27,8 +26,6 @@ pub mod utils;
 struct PingResponse {
     message: String,
 }
-
-const RESET: bool = false;
 
 static DB_POOL: LazyLock<Pool<MySql>> = std::sync::LazyLock::new(|| {
     MySqlPoolOptions::new()
@@ -87,9 +84,9 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("/public").route("/ping", get().to(handle_ping)))
             .service(
                 web::scope("")
-                    .wrap(middleware::from_fn(
+                    /* .wrap(middleware::from_fn(
                         middlewares::auth_middleware::auth_middleware,
-                    ))
+                    ))*/
                     .route("/login_test", get().to(login_test)),
             )
     })
@@ -104,21 +101,12 @@ async fn handle_ping() -> impl Responder {
     };
     HttpResponse::Ok().json(response)
 }
-async fn up_all_table() -> Result<(), Box<dyn std::error::Error>> {
-    User::up().await?;
 
-    Ok(())
-}
-async fn down_all_table() -> Result<(), Box<dyn std::error::Error>> {
-    User::down().await?;
-
-    Ok(())
-}
-async fn login_test(claim: Claims) -> HttpResponse {
-    let message = if claim.admin {
-        format!("Hi admin n°{}", claim.id)
+async fn login_test(FromClaim(user): FromClaim<User>) -> HttpResponse {
+    let message = if user.is_admin() {
+        format!("Hi admin n°{}", user.id)
     } else {
-        format!("Hi user n°{}", claim.id)
+        format!("Hi user n°{}", user.id)
     };
     HttpResponse::Ok().json(message)
 }

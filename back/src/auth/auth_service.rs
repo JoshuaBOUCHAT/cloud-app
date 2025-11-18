@@ -3,9 +3,14 @@ use actix_web::{HttpResponse, web};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    auth::bearer_manager::{Claims, Token},
+    constants::messages::{
+        CREDENTIALS_INCORECT, TOKEN_EXPIRED, USER_CREATED, USER_LOGGED_OUT, USER_NOT_FOUND,
+        USER_NOT_VERIFIED, USER_VERIFIED,
+    },
     errors::{AppError, AppResult},
     models::user_model::User,
-    shared::{EMAIL_RE, PASSWORD_RE},
+    shared::{EMAIL_RE, JsonResponse, PASSWORD_RE},
     utils::{
         email_utils::send_mail,
         redis_utils::{redis_del, redis_get, redis_set},
@@ -27,39 +32,74 @@ impl LoginCredential {
         &self.password
     }
     fn is_valide_credential(&self) -> AppResult<()> {
-        if !is_valid_email(&self.email) {
+        if !Self::is_valid_email(&self.email) {
             return Err(AppError::Validation("email invalide".into()));
         }
-        if !is_valid_password(&self.password) {
+        if !Self::is_valid_password(&self.password) {
             return Err(AppError::Validation("password invalide".into()));
         }
         Ok(())
     }
+    fn is_valid_email(email: &str) -> bool {
+        EMAIL_RE.is_match(email).unwrap()
+    }
+
+    fn is_valid_password(password: &str) -> bool {
+        PASSWORD_RE.is_match(password).unwrap()
+    }
 }
 
 pub async fn login(session: Session, form: web::Json<LoginCredential>) -> AppResult<HttpResponse> {
-    if session.contains_key("user_id") {
-        return Ok(HttpResponse::Ok().json("already logged in"));
+    if let Some(user_id) = session.get::<i32>("user_id").unwrap() {
+        if let Some(valid_user_token) = User::get_token(user_id).await? {
+            return Ok(HttpResponse::Ok().json(JsonResponse::from(valid_user_token)));
+        }
     }
     let credential = &*form;
     let Some(user) = User::get_from_credential(credential).await? else {
-        return Ok(HttpResponse::Unauthorized().json("Credentials incorrect"));
+        return Ok(HttpResponse::Unauthorized()
+            .json(JsonResponse::Message(CREDENTIALS_INCORECT.to_string())));
     };
     //As the insert fails only if the number can be JSON Serialize we can safely unwrap
     session.insert("user_id", user.id).unwrap();
-    session
-        .insert("verified", user.verified_at.is_some())
-        .unwrap();
-
-    return Ok(HttpResponse::Ok().json("login successfull"));
+    return Ok(HttpResponse::Ok().json(JsonResponse::Message(USER_CREATED.to_string())));
 }
 
-fn is_valid_email(email: &str) -> bool {
-    EMAIL_RE.is_match(email).unwrap()
+pub async fn register(
+    session: Session,
+    form: web::Json<LoginCredential>,
+) -> AppResult<HttpResponse> {
+    if let Some(user_id) = session.get::<i32>("user_id").unwrap() {
+        let response = if let Some(token) = User::get_token(user_id).await? {
+            //user have a token so he have been verified
+            JsonResponse::from(token)
+        } else {
+            //user logged in but not verified
+            JsonResponse::Message(USER_NOT_VERIFIED.to_string())
+        };
+        return Ok(HttpResponse::Ok().json(response));
+    }
+    let credential = &*form;
+
+    credential.is_valide_credential()?;
+
+    let user_id = User::create(credential).await?;
+
+    //As the insert fails only if the number can be JSON Serialize we can safely unwrap
+    session.insert("user_id", user_id).unwrap();
+
+    create_verification_token_and_send_mail(user_id, &credential.email).await?;
+
+    Ok(HttpResponse::Ok().json(USER_CREATED))
 }
 
-fn is_valid_password(password: &str) -> bool {
-    PASSWORD_RE.is_match(password).unwrap()
+async fn create_verification_token_and_send_mail(user_id: i32, email: &str) -> AppResult<()> {
+    let token = VerifyToken::new();
+    let value = VerifyValue::new(user_id);
+
+    token.send_to_cache(&value).await?;
+    send_verification_email(email, &token.token)?;
+    Ok(())
 }
 pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
     let verify_url = format!("https://localhost/api/auth/verify?token={}", token);
@@ -72,38 +112,7 @@ pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn register(
-    session: Session,
-    form: web::Json<LoginCredential>,
-) -> AppResult<HttpResponse> {
-    if session.contains_key("user_id") {
-        return Ok(HttpResponse::Ok().json("already logged in"));
-    }
-    let credential = &*form;
-
-    credential.is_valide_credential()?;
-
-    let user_id = User::create(credential).await?;
-
-    //As the insert fails only if the number can be JSON Serialize we can safely unwrap
-    session.insert("user_id", user_id).unwrap();
-    session.insert("verified", false).unwrap();
-
-    create_verification_token_and_send_mail(user_id, &credential.email).await?;
-
-    Ok(HttpResponse::Ok().json("Acount creation succed"))
-}
-
-async fn create_verification_token_and_send_mail(user_id: i32, email: &str) -> AppResult<()> {
-    let token = VerifyToken::new();
-    let value = VerifyValue::new(user_id);
-
-    token.send_to_cache(&value).await?;
-    send_verification_email(email, &token.token)?;
-    Ok(())
-}
-
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct VerifyToken {
     token: String,
 }
@@ -135,11 +144,22 @@ impl VerifyValue {
         Self { user_id, exp }
     }
 }
-
-pub async fn verify(session: Session, token: web::Query<VerifyToken>) -> AppResult<HttpResponse> {
+use web::Query;
+pub async fn verify(
+    session: Session,
+    Query(verify_token): Query<VerifyToken>,
+) -> AppResult<HttpResponse> {
     eprintln!("here ! heheh");
-    let Some(verify_value): Option<VerifyValue> = redis_get(&token.token).await? else {
-        return Ok(HttpResponse::NotFound().json("verification link is wrong or expired "));
+    if let Some(user_id) = session.get::<i32>("user_id").unwrap() {
+        if let Some(token) = User::get_token(user_id).await? {
+            return Ok(HttpResponse::Ok().json(JsonResponse::from(token)));
+        }
+    }
+
+    let Some(verify_value): Option<VerifyValue> = redis_get(&verify_token).await? else {
+        return Ok(
+            HttpResponse::NotFound().json(JsonResponse::from_message("link invalid or expired"))
+        );
     };
     eprintln!("Token is valide");
     let now = SystemTime::now()
@@ -149,28 +169,19 @@ pub async fn verify(session: Session, token: web::Query<VerifyToken>) -> AppResu
     let user_id = verify_value.user_id;
     if now > verify_value.exp {
         //gérer le token expired
-        redis_del(&token.token).await?;
+        redis_del(&verify_token).await?;
         let Some(user) = User::get(user_id).await? else {
-            return Ok(HttpResponse::NotFound().json("User not found"));
+            return Ok(HttpResponse::NotFound().json(JsonResponse::from_message(USER_NOT_FOUND)));
         };
         create_verification_token_and_send_mail(user_id, &user.email).await?;
 
-        return Err(AppError::Unauthorized);
+        return Ok(HttpResponse::Unauthorized().json(JsonResponse::from_message(TOKEN_EXPIRED)));
     }
 
     User::verify_user(user_id).await?;
-    session.insert("verified", true).unwrap();
-    Ok(HttpResponse::Ok().json("account validated"))
+    Ok(HttpResponse::Ok().json(JsonResponse::from_message(USER_VERIFIED)))
 }
 pub async fn logout(session: Session) -> HttpResponse {
     let _ = session.remove("user_id");
-    let _ = session.remove("verified");
-    HttpResponse::Ok().json("Perfectly logout")
-}
-pub async fn logout_and_redirect(session: Session) -> HttpResponse {
-    let _ = session.remove("user_id");
-    let _ = session.remove("verified");
-    HttpResponse::TemporaryRedirect()
-        .append_header(("Location", "/auth"))
-        .finish()
+    HttpResponse::Ok().json(USER_LOGGED_OUT)
 }

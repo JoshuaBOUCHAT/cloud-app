@@ -8,6 +8,7 @@ actix-rt = "2.11.0"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
 actix-web = { version = "4.11.0", features = ["rustls"] }
 argon2 = "0.5.3"
+async-trait = "0.1.89"
 bb8 = "0.9.0"
 bb8-redis = "0.24.0"
 chrono = { version = "0.4.42", features = ["serde"] }
