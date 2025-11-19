@@ -1,4 +1,3 @@
-use actix_web::HttpResponse;
 use serde::{Deserialize, Serialize};
 
 use sqlx::{query, query_as};
@@ -11,7 +10,7 @@ use crate::{
         auth_service::LoginCredential,
         bearer_manager::{Claims, Token},
     },
-    constants::messages::{EMAIL_ALREADY_EXIST, USER_NOT_FOUND, USER_NOT_VERIFIED},
+    constants::messages::{EMAIL_ALREADY_EXIST, USER_NOT_FOUND},
     errors::{AppError, AppResult},
     utils::redis_utils::{redis_get, redis_set_ex},
 };
@@ -139,7 +138,7 @@ impl User {
         };
 
         if user.is_verified() {
-            let new_claims = Claims::new_user_claim(id, true);
+            let new_claims = Claims::new_user_claim(id);
             return Ok(Some(Token::try_from(&new_claims)?));
         } else {
             Ok(None)
@@ -161,8 +160,6 @@ impl User {
         }
         Ok(user)
     }*/
-}
-impl User {
     pub fn is_admin(&self) -> bool {
         self.admin != 0
     }
@@ -176,13 +173,9 @@ use async_trait::async_trait;
 #[async_trait]
 impl TryFromClaim for User {
     async fn try_from_claim(claims: &Claims) -> Result<Self, actix_web::Error> {
-        if claims.is_user_verified {
-            let user = Self::get(claims.user_id)
-                .await?
-                .ok_or_else(|| AppError::Internal(USER_NOT_FOUND.to_string()))?;
-            Ok(user)
-        } else {
-            Err(AppError::Unauthorized(USER_NOT_VERIFIED.to_string()).into())
-        }
+        let user = Self::get(claims.user_id)
+            .await?
+            .ok_or_else(|| AppError::Internal(USER_NOT_FOUND.to_string()))?;
+        Ok(user)
     }
 }

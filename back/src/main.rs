@@ -36,16 +36,8 @@ static DB_POOL: LazyLock<Pool<MySql>> = std::sync::LazyLock::new(|| {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let pool = MySqlPoolOptions::new()
-        .max_connections(6)
-        .connect(&std::env::var("DATABASE_URL").expect("DATABASE_URL not define !"))
-        .await
-        .expect("Can't connect to DB");
-
-    init_redis_pool().await;
-
     let rows = sqlx::query("SHOW TABLES")
-        .fetch_all(&pool)
+        .fetch_all(&*DB_POOL)
         .await
         .expect("Impossible de lister les tables");
 
@@ -78,8 +70,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/login", post().to(auth_service::login))
                     .route("/register", post().to(auth_service::register))
                     .route("/verify", post().to(auth_service::verify))
-                    .route("/logout", post().to(auth_service::logout))
-                    .route("/logout", get().to(auth_service::logout_and_redirect)),
+                    .route("/logout", post().to(auth_service::logout)),
             )
             .service(web::scope("/public").route("/ping", get().to(handle_ping)))
             .service(

@@ -1,6 +1,6 @@
 use actix_web::{FromRequest, HttpRequest, dev::Payload};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -12,9 +12,27 @@ pub enum TokenError {
 }
 
 #[repr(transparent)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
+
 pub struct Token {
+    #[serde(skip_serializing)]
     token_str: String,
+}
+
+use serde_json::Value;
+
+impl Serialize for Token {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // token_str contient déjà du JSON, on le parse
+        let raw: Value =
+            serde_json::from_str(&self.token_str).map_err(serde::ser::Error::custom)?;
+
+        // on renvoie le JSON tel quel
+        raw.serialize(serializer)
+    }
 }
 
 impl AsRef<str> for Token {
@@ -30,7 +48,7 @@ pub struct Claims {
 }
 
 impl Claims {
-    fn new(user_id: i32, admin: bool, is_user_verified: bool) -> Self {
+    fn new(user_id: i32, admin: bool) -> Self {
         const HOUR: u64 = 60 * 60;
         let exp =
             SystemTime::now().duration_since(UNIX_EPOCH).unwrap() + Duration::from_secs(1 * HOUR);
@@ -40,11 +58,11 @@ impl Claims {
             is_user_admin: admin,
         }
     }
-    pub fn new_user_claim(user_id: i32, is_user_verified: bool) -> Self {
-        Self::new(user_id, false, is_user_verified)
+    pub fn new_user_claim(user_id: i32) -> Self {
+        Self::new(user_id, false)
     }
-    pub fn new_admin_claim(user_id: i32, is_user_verified: bool) -> Self {
-        Self::new(user_id, true, is_user_verified)
+    pub fn new_admin_claim(user_id: i32) -> Self {
+        Self::new(user_id, true)
     }
     pub fn parse_and_validate(token: &str) -> Result<Claims, TokenError> {
         // CONFIGURATION DE LA VALIDATION
@@ -75,7 +93,6 @@ use futures_util::future::{Ready, ready};
 use crate::{
     constants::messages::{TOKEN_EXPIRED, TOKEN_INVALID},
     errors::AppError,
-    shared::JsonResponse,
 };
 
 impl FromRequest for Claims {

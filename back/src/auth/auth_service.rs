@@ -1,16 +1,19 @@
 use actix_session::Session;
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, http::StatusCode, web};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    auth::bearer_manager::{Claims, Token},
+    auth::{
+        auth_models::{VerifyToken, VerifyValue},
+        bearer_manager::{Claims, Token},
+    },
     constants::messages::{
         CREDENTIALS_INCORECT, TOKEN_EXPIRED, USER_CREATED, USER_LOGGED_OUT, USER_NOT_FOUND,
         USER_NOT_VERIFIED, USER_VERIFIED,
     },
     errors::{AppError, AppResult},
     models::user_model::User,
-    shared::{EMAIL_RE, JsonResponse, PASSWORD_RE},
+    shared::{EMAIL_RE, JsonResponse, PASSWORD_RE, get_now_unix},
     utils::{
         email_utils::send_mail,
         redis_utils::{redis_del, redis_get, redis_set},
@@ -33,10 +36,10 @@ impl LoginCredential {
     }
     fn is_valide_credential(&self) -> AppResult<()> {
         if !Self::is_valid_email(&self.email) {
-            return Err(AppError::Validation("email invalide".into()));
+            return Err(AppError::Validation("email invalid".into()));
         }
         if !Self::is_valid_password(&self.password) {
-            return Err(AppError::Validation("password invalide".into()));
+            return Err(AppError::Validation("password invalid".into()));
         }
         Ok(())
     }
@@ -49,48 +52,60 @@ impl LoginCredential {
     }
 }
 
-pub async fn login(session: Session, form: web::Json<LoginCredential>) -> AppResult<HttpResponse> {
+pub async fn login(
+    session: Session,
+    web::Json(credentials): web::Json<LoginCredential>,
+) -> AppResult<JsonResponse> {
+    // --- Case 1 : User already connected ---
     if let Some(user_id) = session.get::<i32>("user_id").unwrap() {
-        if let Some(valid_user_token) = User::get_token(user_id).await? {
-            return Ok(HttpResponse::Ok().json(JsonResponse::from(valid_user_token)));
-        }
+        return if let Some(user_token) = User::get_token(user_id).await? {
+            //Just give back the token
+            JsonResponse::ok().token(user_token)
+        } else {
+            JsonResponse::ok().message(USER_NOT_VERIFIED)
+        };
     }
-    let credential = &*form;
-    let Some(user) = User::get_from_credential(credential).await? else {
-        return Ok(HttpResponse::Unauthorized()
-            .json(JsonResponse::Message(CREDENTIALS_INCORECT.to_string())));
+    // --- Case 2 : User not connected, trying to login ---
+    let Some(user) = User::get_from_credential(&credentials).await? else {
+        //Case 2-1 User connexion failed
+        return JsonResponse::unauthorized().message(CREDENTIALS_INCORECT);
     };
+
     //As the insert fails only if the number can be JSON Serialize we can safely unwrap
     session.insert("user_id", user.id).unwrap();
-    return Ok(HttpResponse::Ok().json(JsonResponse::Message(USER_CREATED.to_string())));
+
+    // --- Step 3 : Distinguish verified / unverified users ---
+    let Some(token) = User::get_token(user.id).await? else {
+        return JsonResponse::ok().message(USER_NOT_VERIFIED);
+    };
+
+    JsonResponse::token(token)
 }
 
 pub async fn register(
     session: Session,
-    form: web::Json<LoginCredential>,
-) -> AppResult<HttpResponse> {
+    web::Json(credentials): web::Json<LoginCredential>,
+) -> AppResult<JsonResponse> {
     if let Some(user_id) = session.get::<i32>("user_id").unwrap() {
-        let response = if let Some(token) = User::get_token(user_id).await? {
+        return if let Some(token) = User::get_token(user_id).await? {
             //user have a token so he have been verified
-            JsonResponse::from(token)
+            JsonResponse::token(token)
         } else {
             //user logged in but not verified
-            JsonResponse::Message(USER_NOT_VERIFIED.to_string())
+            JsonResponse::status(StatusCode::CONFLICT).message("User already connected")
         };
-        return Ok(HttpResponse::Ok().json(response));
     }
-    let credential = &*form;
 
-    credential.is_valide_credential()?;
+    credentials.is_valide_credential()?;
 
-    let user_id = User::create(credential).await?;
+    let user_id = User::create(&credentials).await?;
 
     //As the insert fails only if the number can be JSON Serialize we can safely unwrap
     session.insert("user_id", user_id).unwrap();
 
-    create_verification_token_and_send_mail(user_id, &credential.email).await?;
+    create_verification_token_and_send_mail(user_id, &credentials.email).await?;
 
-    Ok(HttpResponse::Ok().json(USER_CREATED))
+    JsonResponse::ok().message(USER_NOT_VERIFIED)
 }
 
 async fn create_verification_token_and_send_mail(user_id: i32, email: &str) -> AppResult<()> {
@@ -98,7 +113,7 @@ async fn create_verification_token_and_send_mail(user_id: i32, email: &str) -> A
     let value = VerifyValue::new(user_id);
 
     token.send_to_cache(&value).await?;
-    send_verification_email(email, &token.token)?;
+    send_verification_email(email, token.as_ref())?;
     Ok(())
 }
 pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
@@ -112,75 +127,58 @@ pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
     Ok(())
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct VerifyToken {
-    token: String,
-}
-impl VerifyToken {
-    fn new() -> Self {
-        Self {
-            token: uuid::Uuid::new_v4().to_string(),
-        }
-    }
-    async fn send_to_cache(&self, verify_value: &VerifyValue) -> AppResult<()> {
-        redis_set(&self.token, verify_value).await?;
-        Ok(())
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct VerifyValue {
-    user_id: i32,
-    exp: u64,
-}
-
-impl VerifyValue {
-    fn new(user_id: i32) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let exp = now + 60 * 15;
-        Self { user_id, exp }
-    }
-}
 use web::Query;
 pub async fn verify(
     session: Session,
     Query(verify_token): Query<VerifyToken>,
-) -> AppResult<HttpResponse> {
+) -> AppResult<JsonResponse> {
     eprintln!("here ! heheh");
-    if let Some(user_id) = session.get::<i32>("user_id").unwrap() {
+    let actual_maybe_id = session.get::<i32>("user_id").unwrap();
+    //Check if the current user is not already connected
+    if let Some(user_id) = actual_maybe_id {
         if let Some(token) = User::get_token(user_id).await? {
-            return Ok(HttpResponse::Ok().json(JsonResponse::from(token)));
+            return JsonResponse::ok().token(token);
         }
     }
 
     let Some(verify_value): Option<VerifyValue> = redis_get(&verify_token).await? else {
-        return Ok(
-            HttpResponse::NotFound().json(JsonResponse::from_message("link invalid or expired"))
-        );
+        return JsonResponse::not_found().message("link invalid or expired");
     };
+
     eprintln!("Token is valide");
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let user_id = verify_value.user_id;
-    if now > verify_value.exp {
+    let user_id = verify_value.get_user_id();
+
+    if get_now_unix() > verify_value.get_exp() {
         //gérer le token expired
         redis_del(&verify_token).await?;
         let Some(user) = User::get(user_id).await? else {
-            return Ok(HttpResponse::NotFound().json(JsonResponse::from_message(USER_NOT_FOUND)));
+            return JsonResponse::not_found().message(USER_NOT_FOUND);
         };
         create_verification_token_and_send_mail(user_id, &user.email).await?;
 
-        return Ok(HttpResponse::Unauthorized().json(JsonResponse::from_message(TOKEN_EXPIRED)));
+        return JsonResponse::unauthorized().message(TOKEN_EXPIRED);
     }
 
     User::verify_user(user_id).await?;
-    Ok(HttpResponse::Ok().json(JsonResponse::from_message(USER_VERIFIED)))
+
+    let Some(actual_user_id) = actual_maybe_id else {
+        //The user verify his account with a not connected device
+        return JsonResponse::ok().message(USER_VERIFIED);
+    };
+    if verify_value.get_user_id() != actual_user_id {
+        //A connected user verfiy another account so return success but not a new token
+        return JsonResponse::ok().message(USER_VERIFIED);
+    }
+
+    let token = User::get_token(user_id)
+        .await?
+        .ok_or(AppError::Internal(format!(
+            "Internal error occurs when trying to retreive User n°{}'s token ",
+            user_id
+        )))?;
+    JsonResponse::ok().token(token)
 }
+
 pub async fn logout(session: Session) -> HttpResponse {
     let _ = session.remove("user_id");
     HttpResponse::Ok().json(USER_LOGGED_OUT)
