@@ -12,6 +12,7 @@ use crate::{
 };
 
 pub type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
+pub type APIResponse = AppResult<JsonResponse>;
 
 pub static EMAIL_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[\w\.-]+@[\w\.-]+\.\w{2,}$").unwrap());
