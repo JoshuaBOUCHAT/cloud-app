@@ -16,6 +16,15 @@ services:
     depends_on:
       - database
 
+  swagger:
+    image: swaggerapi/swagger-ui:latest
+    environment:
+      SWAGGER_JSON_URL: https://localhost/api/swagger.json
+    ports:
+      - "8020:8080"
+    depends_on:
+      - back
+
   front:
     image: node:20
     volumes:

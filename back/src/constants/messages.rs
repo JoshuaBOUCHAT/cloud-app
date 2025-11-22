@@ -1,5 +1,6 @@
 pub const TOKEN_INVALID: &str = "Token invalide";
 pub const TOKEN_EXPIRED: &str = "Token expired";
+pub const TOKEN_ABSENT: &str = "Token absent";
 pub const SESSION_INVALID: &str = "Session invalid";
 pub const USER_CREATED: &str = "User created successfully";
 pub const USER_NOT_FOUND: &str = "User not found";

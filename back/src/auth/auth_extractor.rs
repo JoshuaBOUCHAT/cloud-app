@@ -1,9 +1,7 @@
+use crate::auth::auth_models::claims::Claims;
 use actix_web::FromRequest;
 use async_trait::async_trait;
 use std::pin::Pin;
-
-use crate::auth::bearer_manager::Claims;
-
 pub struct FromClaim<T: TryFromClaim>(pub T);
 
 #[async_trait]

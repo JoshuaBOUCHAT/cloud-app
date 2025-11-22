@@ -9,6 +9,7 @@ use crate::errors::AppResult;
 pub static REDIS_POOL: OnceLock<bb8::Pool<RedisConnectionManager>> = OnceLock::new();
 
 pub async fn init_redis_pool() {
+    println!("Initialising pool");
     let manager = RedisConnectionManager::new("redis://redis/").unwrap();
     REDIS_POOL
         .set(

@@ -2,15 +2,15 @@ use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 use actix_web::{
     App, HttpResponse, HttpServer, Responder,
     cookie::Key,
-    web::{self, get, post},
+    web::{self, get},
 };
 use serde::Serialize;
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
 use std::sync::LazyLock;
 
 use crate::{
-    auth::{auth_extractor::FromClaim, auth_service, middlewares},
-    models::user_model::User,
+    auth::auth_service::{login, logout, refresh_token, register, verify},
+    services::openapi_service::openapi_yaml,
     utils::redis_utils::{REDIS_POOL, init_redis_pool},
 };
 
@@ -21,6 +21,8 @@ pub mod models;
 pub mod services;
 pub mod shared;
 pub mod utils;
+
+pub const SECRET: &[u8; 44] = b"laOOVyHM6s3IcgDAty1O7AXAdRZR6eaaQi65v3qhVRg=";
 
 #[derive(Serialize)]
 struct PingResponse {
@@ -33,13 +35,16 @@ static DB_POOL: LazyLock<Pool<MySql>> = std::sync::LazyLock::new(|| {
         .connect_lazy(&std::env::var("DATABASE_URL").expect("DATABASE_URL not define !"))
         .expect("Can't connect to DB")
 });
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let rows = sqlx::query("SHOW TABLES")
         .fetch_all(&*DB_POOL)
         .await
         .expect("Impossible de lister les tables");
+    println!("initialising redis cell");
+    init_redis_pool().await;
+    REDIS_POOL.wait();
+    println!("initialising successe");
 
     println!("Now listing tables");
     for row in rows {
@@ -67,19 +72,14 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 web::scope("/auth")
-                    .route("/login", post().to(auth_service::login))
-                    .route("/register", post().to(auth_service::register))
-                    .route("/verify", post().to(auth_service::verify))
-                    .route("/logout", post().to(auth_service::logout)),
+                    .service(login)
+                    .service(register)
+                    .service(verify)
+                    .service(refresh_token)
+                    .service(logout),
             )
+            .service(openapi_yaml)
             .service(web::scope("/public").route("/ping", get().to(handle_ping)))
-            .service(
-                web::scope("")
-                    /* .wrap(middleware::from_fn(
-                        middlewares::auth_middleware::auth_middleware,
-                    ))*/
-                    .route("/login_test", get().to(login_test)),
-            )
     })
     .bind(("0.0.0.0", 8080))?
     .run()
@@ -91,13 +91,4 @@ async fn handle_ping() -> impl Responder {
         message: "pong".to_string(),
     };
     HttpResponse::Ok().json(response)
-}
-
-async fn login_test(FromClaim(user): FromClaim<User>) -> HttpResponse {
-    let message = if user.is_admin() {
-        format!("Hi admin n°{}", user.id)
-    } else {
-        format!("Hi user n°{}", user.id)
-    };
-    HttpResponse::Ok().json(message)
 }

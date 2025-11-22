@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
 actix-rt = "2.11.0"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
 actix-web = { version = "4.11.0", features = ["rustls"] }
@@ -14,7 +15,6 @@ bb8-redis = "0.24.0"
 chrono = { version = "0.4.42", features = ["serde"] }
 fancy-regex = "0.16.1"
 futures-util = "0.3.31"
-jsonwebtoken = "9.3.1"
 lettre = { version = "0.11.18", features = [
     "ring",
     "rustls",
@@ -34,4 +34,5 @@ sqlx = { version = "0.8.6", features = [
 thiserror = "2.0.16"
 time = { version = "0.3.43", features = ["serde"] }
 tokio = "1.47.1"
+
 uuid = { version = "1.18.1", features = ["v4"] }

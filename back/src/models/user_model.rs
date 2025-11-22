@@ -7,8 +7,7 @@ use crate::{
     DB_POOL,
     auth::{
         auth_extractor::TryFromClaim,
-        auth_service::LoginCredential,
-        bearer_manager::{Claims, Token},
+        auth_models::{claims::Claims, credential::LoginCredential, token::Token},
     },
     constants::messages::{EMAIL_ALREADY_EXIST, USER_NOT_FOUND},
     errors::{AppError, AppResult},
@@ -83,9 +82,10 @@ impl User {
         };
 
         if let sqlx::Error::Database(db_err) = &err {
-            if db_err.code().as_deref() == Some("1062") {
-                // 1062 = Duplicate entry
-                return Err(AppError::Conflict(String::from(EMAIL_ALREADY_EXIST)));
+            let err = db_err.downcast_ref::<sqlx::mysql::MySqlDatabaseError>();
+            if err.number() == 1062 {
+                // Duplicate entry
+                return Err(AppError::Conflict(EMAIL_ALREADY_EXIST.to_string()));
             }
         }
         // Pour les autres erreurs
@@ -140,6 +140,17 @@ impl User {
         if user.is_verified() {
             let new_claims = Claims::new_user_claim(id);
             return Ok(Some(Token::try_from(&new_claims)?));
+        } else {
+            Ok(None)
+        }
+    }
+    pub async fn get_claim(id: i32) -> AppResult<Option<Claims>> {
+        let Some(user) = Self::get(id).await? else {
+            return Err(AppError::Internal(USER_NOT_FOUND.to_string()));
+        };
+
+        if user.is_verified() {
+            return Ok(Some(Claims::new_user_claim(id)));
         } else {
             Ok(None)
         }

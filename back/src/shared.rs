@@ -7,18 +7,12 @@ use std::{
 };
 
 use crate::{
-    auth::bearer_manager::Token,
+    auth::auth_models::token::Token,
     errors::{AppError, AppResult},
 };
 
 pub type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 pub type APIResponse = AppResult<JsonResponse>;
-
-pub static EMAIL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[\w\.-]+@[\w\.-]+\.\w{2,}$").unwrap());
-pub static PASSWORD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$").unwrap()
-});
 
 #[derive(Serialize)]
 #[serde(tag = "type", content = "data")]
@@ -33,19 +27,19 @@ pub struct JsonResponseBuilder {
     status_code: StatusCode,
 }
 impl JsonResponseBuilder {
-    pub fn token(self, token: Token) -> AppResult<JsonResponse> {
+    pub fn token(self, token: Token) -> APIResponse {
         Ok(JsonResponse {
             data: JsonData::Token(token),
             status_code: self.status_code,
         })
     }
-    pub fn message(self, message: impl AsRef<str>) -> AppResult<JsonResponse> {
+    pub fn message(self, message: impl AsRef<str>) -> APIResponse {
         Ok(JsonResponse {
             data: JsonData::Message(message.as_ref().to_string()),
             status_code: self.status_code,
         })
     }
-    pub fn object(self, object: impl Serialize) -> AppResult<JsonResponse> {
+    pub fn object(self, object: impl Serialize) -> APIResponse {
         Ok(JsonResponse {
             data: JsonData::Object(serde_json::to_string(&object)?),
             status_code: self.status_code,
@@ -58,7 +52,7 @@ pub struct JsonResponse {
 }
 
 impl JsonResponse {
-    pub fn build(status_code: u16) -> Result<JsonResponseBuilder, AppError> {
+    pub fn build(status_code: u16) -> AppResult<JsonResponseBuilder> {
         let status_code = StatusCode::from_u16(status_code).map_err(|err| {
             AppError::Internal(format!(
                 "Error while parsing status code: {}   err:\n{err}",
@@ -85,7 +79,7 @@ impl JsonResponse {
             status_code: StatusCode::UNAUTHORIZED,
         }
     }
-    pub fn token(token: Token) -> AppResult<JsonResponse> {
+    pub fn token(token: Token) -> APIResponse {
         Ok(JsonResponse {
             data: JsonData::Token(token),
             status_code: StatusCode::OK,

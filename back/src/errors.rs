@@ -5,7 +5,10 @@ use redis::RedisError;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::constants::messages::SERIALIZATION_FAILED;
+use crate::{
+    auth::auth_models::token::TokenError,
+    constants::messages::{SERIALIZATION_FAILED, TOKEN_ABSENT, TOKEN_EXPIRED, TOKEN_INVALID},
+};
 
 pub type AppResult<T> = Result<T, AppError>;
 
@@ -25,6 +28,8 @@ pub enum AppError {
     Mail(String),
     #[error("Conflict: {0}")]
     Conflict(String),
+    #[error("Forbiden: {0}")]
+    Forbiden(String),
 }
 impl From<sqlx::error::Error> for AppError {
     fn from(value: sqlx::error::Error) -> Self {
@@ -73,6 +78,15 @@ impl From<jsonwebtoken::errors::Error> for AppError {
         Self::Internal(SERIALIZATION_FAILED.to_string())
     }
 }
+impl From<TokenError> for AppError {
+    fn from(value: TokenError) -> Self {
+        match value {
+            TokenError::Expired => AppError::Unauthorized(TOKEN_EXPIRED.to_string()),
+            TokenError::Invalid => AppError::Validation(TOKEN_INVALID.to_string()),
+            TokenError::Absent => AppError::Unauthorized(TOKEN_ABSENT.to_string()),
+        }
+    }
+}
 
 #[derive(Serialize)]
 struct ErrorResponse {
@@ -99,6 +113,7 @@ impl ResponseError for AppError {
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Mail(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::Forbiden(_) => StatusCode::FORBIDDEN,
         }
     }
 }

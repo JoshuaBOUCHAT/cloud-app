@@ -1,0 +1,179 @@
+openapi: 3.0.3
+info:
+  title: Auth API
+  version: "1.0.0"
+  description: Authentication system with email verification & session-based login.
+
+servers:
+  - url: https://localhost/api/auth
+
+paths:
+
+  /login:
+    post:
+      summary: Login with email and password
+      description: |
+        - If already logged-in: returns the user's existing **Claims**
+        - If not verified: returns message `"User not verified"`
+        - If credentials invalid: returns `"Credentials incorrect"`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginCredential"
+      responses:
+        "200":
+          description: Login OK or user already logged
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Claims"
+                  - $ref: "#/components/schemas/Message"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /register:
+    post:
+      summary: Register a new user
+      description: |
+        - If already logged-in and verified → returns Claims  
+        - If logged-in but not verified → 409  
+        - Otherwise creates user and sends verification email  
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginCredential"
+      responses:
+        "200":
+          description: User created but not verified yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "409":
+          description: User already connected but not verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /verify:
+    post:
+      summary: Verify email using a verification token
+      description: |
+        Token is passed as a **query parameter**, not JSON.
+        - If token expired → resend email  
+        - If valid → verify user and return message or token  
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Verification token received by email
+      responses:
+        "200":
+          description: Verified or already logged
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Claims"
+                  - $ref: "#/components/schemas/Message"
+        "401":
+          description: Token expired → new token sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: Invalid or expired link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /refresh_token:
+    post:
+      summary: Refresh the user's JWT token
+      description: |
+        Returns a new Claims object if user is logged and verified.
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Claims"
+        "401":
+          description: User not logged or not verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /logout:
+    post:
+      summary: Logout user
+      description: Removes user session field `"user_id"`
+      responses:
+        "200":
+          description: User logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+components:
+  schemas:
+
+    LoginCredential:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    Claims:
+      type: object
+      required:
+        - user_id
+        - is_user_admin
+        - exp
+      properties:
+        user_id:
+          type: integer
+          format: int32
+        is_user_admin:
+          type: boolean
+        exp:
+          type: integer
+          format: int64
+          description: UNIX expiration timestamp
+
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+
