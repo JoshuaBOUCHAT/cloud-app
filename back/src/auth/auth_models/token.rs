@@ -1,17 +1,15 @@
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use serde::{Deserialize, Serialize, Serializer};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use serde::{Deserialize, Serialize, Serializer, de::DeserializeOwned};
 use serde_json::Value;
 
-use crate::{
-    SECRET,
-    auth::auth_models::{claims::Claims, refresh_token::RefreshToken},
-    errors::AppError,
-};
+use crate::SECRET;
 
 pub enum TokenError {
     Expired,
+    ExpiredId(i32),
     Invalid,
     Absent,
+    EncodeError(String),
 }
 
 #[repr(transparent)]
@@ -40,19 +38,46 @@ impl AsRef<str> for Token {
         &self.token_str
     }
 }
-impl TryFrom<&Claims> for Token {
-    type Error = AppError;
-    fn try_from(value: &Claims) -> Result<Self, Self::Error> {
+
+use jsonwebtoken::errors::ErrorKind::ExpiredSignature;
+pub trait TokenAble: Serialize + DeserializeOwned {
+    fn encode(&self) -> Result<Token, TokenError> {
         let header = Header::new(Algorithm::HS256);
-        let token_str = encode(&header, value, &EncodingKey::from_secret(SECRET))?;
+        let token_str = encode(&header, self, &EncodingKey::from_secret(SECRET))
+            .map_err(|err| TokenError::EncodeError(err.to_string()))?;
         Ok(Token { token_str })
     }
+    fn decode(raw_token: &str) -> Result<Self, TokenError> {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.validate_exp = true; // <-- ENABLE AUTOMATIC VALIDATION
+
+        match decode::<Self>(raw_token, &DecodingKey::from_secret(SECRET), &validation) {
+            Ok(data) => Ok(data.claims),
+            Err(e) if e.kind() == &ExpiredSignature => Err(TokenError::Expired),
+            Err(_) => Err(TokenError::Invalid),
+        }
+    }
 }
-impl TryFrom<&RefreshToken> for Token {
-    type Error = AppError;
-    fn try_from(value: &RefreshToken) -> Result<Self, Self::Error> {
-        let header = Header::new(Algorithm::HS256);
-        let token_str = encode(&header, value, &EncodingKey::from_secret(SECRET))?;
-        Ok(Token { token_str })
+
+pub trait ExpiredTokenAble: TokenAble {
+    fn get_user_id(&self) -> i32;
+
+    fn decode_expired(raw_token: &str) -> Result<Self, TokenError> {
+        match Self::decode(raw_token) {
+            Ok(decoded) => Ok(decoded),
+            Err(TokenError::Expired) => {
+                let mut validation_no_exp = Validation::new(Algorithm::HS256);
+                validation_no_exp.validate_exp = false;
+
+                let token_data = decode::<Self>(
+                    raw_token,
+                    &DecodingKey::from_secret(SECRET),
+                    &validation_no_exp,
+                )
+                .map_err(|_| TokenError::Invalid)?;
+                Err(TokenError::ExpiredId(token_data.claims.get_user_id()))
+            }
+            Err(err) => Err(err),
+        }
     }
 }

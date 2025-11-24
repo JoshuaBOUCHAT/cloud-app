@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     SECRET,
-    auth::auth_models::token::{Token, TokenError},
+    auth::auth_models::token::{Token, TokenAble, TokenError},
     constants::messages::TOKEN_INVALID,
     errors::{AppError, AppResult},
     shared::get_now_unix,
@@ -29,22 +29,7 @@ impl RefreshToken {
         self.user_id
     }
 }
-impl FromStr for RefreshToken {
-    type Err = TokenError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut validation = Validation::new(Algorithm::HS256);
-        validation.validate_exp = true; // <-- ENABLE AUTOMATIC VALIDATION
-
-        Ok(
-            jsonwebtoken::decode(s, &DecodingKey::from_secret(SECRET), &validation)
-                .map_err(|e| match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => TokenError::Expired,
-                    _ => TokenError::Invalid,
-                })?
-                .claims,
-        )
-    }
-}
+impl TokenAble for RefreshToken {}
 
 /// error 500 on session error should not happend
 /// Forbiden on
@@ -59,20 +44,25 @@ impl FromRequest for RefreshToken {
         ready(try_extract_refresh_token_from_req(req))
     }
 }
-use actix_session::{SessionExt, SessionGetError};
+use actix_session::{Session, SessionExt, SessionGetError};
 
+#[inline(always)]
 pub fn try_extract_refresh_token_from_req(req: &HttpRequest) -> AppResult<RefreshToken> {
-    let maybe_unchecked_token_str: Option<String> = req
-        .get_session()
+    try_extract_refresh_token_from_session(&req.get_session())
+}
+
+pub fn try_extract_refresh_token_from_session(session: &Session) -> AppResult<RefreshToken> {
+    let maybe_unchecked_token_str: Option<String> = session
         .get::<String>(REFRESH_TOKEN_KEY)
         .map_err(handle_session_error)?;
     let unchecked_token_str = maybe_unchecked_token_str.ok_or(TokenError::Absent)?;
 
     //Parising also validate the token
-    let refresh_token = unchecked_token_str.parse()?;
+    let refresh_token = RefreshToken::decode(&unchecked_token_str)?;
 
     Ok(refresh_token)
 }
+
 pub fn handle_session_error(err: SessionGetError) -> AppError {
     let err = format!(
         "Error while deserialising a string in auth::auth_models::refresh_token::try_extract_refresh_token_from_req with err:{err}"

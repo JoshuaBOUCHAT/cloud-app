@@ -7,7 +7,11 @@ use crate::{
     DB_POOL,
     auth::{
         auth_extractor::TryFromClaim,
-        auth_models::{claims::Claims, credential::LoginCredential, token::Token},
+        auth_models::{
+            claims::Claims,
+            credential::LoginCredential,
+            token::{Token, TokenAble},
+        },
     },
     constants::messages::{EMAIL_ALREADY_EXIST, USER_NOT_FOUND},
     errors::{AppError, AppResult},
@@ -139,7 +143,7 @@ impl User {
 
         if user.is_verified() {
             let new_claims = Claims::new_user_claim(id);
-            return Ok(Some(Token::try_from(&new_claims)?));
+            return Ok(Some(new_claims.encode()?));
         } else {
             Ok(None)
         }

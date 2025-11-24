@@ -1,12 +1,12 @@
 use std::pin::Pin;
 
 use actix_web::{FromRequest, HttpRequest};
-use futures_util::future::{Ready, ready};
 
 use crate::{
     auth::auth_models::{
         claims::{Claims, try_extract_claims},
         refresh_token::{REFRESH_TOKEN_KEY, RefreshToken, handle_session_error},
+        token::TokenAble,
     },
     errors::{AppError, AppResult},
     models::user_model::User,
@@ -25,7 +25,7 @@ impl FromRequest for AuthState {
         _payload: &mut actix_web::dev::Payload,
     ) -> Self::Future {
         let req = req.clone();
-        Box::pin(async move { Self::extract(&req).await })
+        Box::pin(async move { try_extract_auth_state(&req).await })
     }
     fn extract(req: &actix_web::HttpRequest) -> Self::Future {
         let req = req.clone();
@@ -33,7 +33,7 @@ impl FromRequest for AuthState {
     }
 }
 use actix_session::SessionExt;
-async fn try_extract_auth_state(req: &HttpRequest) -> AppResult<AuthState> {
+pub async fn try_extract_auth_state(req: &HttpRequest) -> AppResult<AuthState> {
     if let Ok(claims) = try_extract_claims(req) {
         return Ok(AuthState::Connected(claims));
     }
@@ -44,7 +44,7 @@ async fn try_extract_auth_state(req: &HttpRequest) -> AppResult<AuthState> {
     let Some(unchecked_token_str) = maybe_unchecked_token_str else {
         return Ok(AuthState::Guess);
     };
-    let Ok(refresh_token) = unchecked_token_str.parse::<RefreshToken>() else {
+    let Ok(refresh_token) = RefreshToken::decode(&unchecked_token_str) else {
         return Ok(AuthState::Guess);
     };
     //User maybe already verified but not having token
