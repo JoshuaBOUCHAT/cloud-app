@@ -9,7 +9,10 @@ use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
 use std::sync::LazyLock;
 
 use crate::{
-    auth::auth_service::{login, logout, refresh_token, register, verify},
+    auth::{
+        auth_models::{claims::Claims, token::TokenAble},
+        auth_service::{login, logout, refresh_token, register, verify},
+    },
     services::openapi_service::openapi_yaml,
     utils::redis_utils::{REDIS_POOL, init_redis_pool},
 };
@@ -51,6 +54,17 @@ async fn main() -> std::io::Result<()> {
         println!("Table: {:?}", row);
     }
     println!("Finish listing tables");
+
+    let claim = Claims::new_user_claim(4);
+    if let Ok(ser) = claim.encode() {
+        println!("Claims serialisation: {}", ser.as_ref());
+        println!("Claims as json: {}", serde_json::to_string(&claim).unwrap());
+        let decoded_claim = Claims::decode(ser.as_ref()).expect("Deserialisation should not fail");
+        println!(
+            "Decoded as json: {}",
+            serde_json::to_string(&claim).unwrap()
+        );
+    }
 
     HttpServer::new(move || {
         App::new()

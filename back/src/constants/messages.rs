@@ -9,5 +9,6 @@ pub const USER_VERIFIED: &str = "User verified";
 pub const USER_NOT_LOGIN: &str = "User not logged in";
 pub const USER_LOGGED_OUT: &str = "User logged out";
 pub const EMAIL_ALREADY_EXIST: &str = "Email already exist";
+pub const EMAIL_INVALID: &str = "Email invalid";
 pub const SERIALIZATION_FAILED: &str = "Serialization failed";
 pub const CREDENTIALS_INCORECT: &str = "Credentials incorect";

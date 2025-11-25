@@ -8,6 +8,7 @@ use std::{
 
 use crate::{
     auth::auth_models::token::Token,
+    constants::messages::TOKEN_INVALID,
     errors::{AppError, AppResult},
 };
 
@@ -85,6 +86,12 @@ impl JsonResponse {
             status_code: StatusCode::OK,
         })
     }
+    pub fn invalid_token() -> APIResponse {
+        Ok(JsonResponse {
+            data: JsonData::Message(TOKEN_INVALID.to_owned()),
+            status_code: StatusCode::UNAUTHORIZED,
+        })
+    }
 }
 impl Responder for JsonResponse {
     type Body = actix_web::body::BoxBody;
@@ -99,3 +106,15 @@ pub fn get_now_unix() -> u64 {
         .unwrap()
         .as_secs()
 }
+pub fn is_valid_email(email: &str) -> bool {
+    EMAIL_RE.is_match(email).unwrap()
+}
+
+pub fn is_valid_password(password: &str) -> bool {
+    PASSWORD_RE.is_match(password).unwrap()
+}
+pub static EMAIL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[\w\.-]+@[\w\.-]+\.\w{2,}$").unwrap());
+pub static PASSWORD_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$").unwrap()
+});

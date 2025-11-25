@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize, Serializer, de::DeserializeOwned};
 use serde_json::Value;
 
 use crate::SECRET;
-
+#[derive(Debug)]
 pub enum TokenError {
     Expired,
     ExpiredId(i32),

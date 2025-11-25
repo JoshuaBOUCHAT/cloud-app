@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use sqlx::{query, query_as};
+use sqlx::{query, query_as, query_scalar};
 use time::{OffsetDateTime, PrimitiveDateTime};
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
         auth_extractor::TryFromClaim,
         auth_models::{
             claims::Claims,
-            credential::LoginCredential,
+            credential::{Email, LoginCredential},
             token::{Token, TokenAble},
         },
     },
@@ -24,7 +24,7 @@ use password_hash::{PasswordHash, SaltString, rand_core};
 #[derive(Deserialize, Serialize, Clone)]
 pub struct User {
     pub id: i32,
-    pub email: String,
+    pub email: Email,
     pub password: String,
     pub phone_number: Option<String>,
     pub verified_at: Option<PrimitiveDateTime>,
@@ -159,22 +159,17 @@ impl User {
             Ok(None)
         }
     }
+    ///This function do not check if the for password so the id should not be use where security is needed
+    pub async fn get_user_id_from_mail(email: &Email) -> AppResult<Option<i32>> {
+        let maybe_user_id = query_scalar!(
+            r#"SELECT id FROM users WHERE email=? LIMIT 1"#,
+            email.as_ref()
+        )
+        .fetch_optional(&*DB_POOL)
+        .await?;
+        Ok(maybe_user_id)
+    }
 
-    /*async fn actix_response(user_id: i32) -> Result<Self, ActixError> {
-        let maybe_user = match Self::get(user_id).await {
-            Ok(maybe_user) => maybe_user,
-            Err(_) => {
-                return Err(actix_web::error::ErrorInternalServerError(
-                    "An error ocurs sorry !",
-                ));
-            }
-        };
-        let Some(user) = maybe_user else { todo!() };
-        if user.verified_at.is_none() {
-            return Err(actix_web::error::ErrorUnauthorized(USER_NOT_VERIFIED));
-        }
-        Ok(user)
-    }*/
     pub fn is_admin(&self) -> bool {
         self.admin != 0
     }

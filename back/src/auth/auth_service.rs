@@ -1,7 +1,7 @@
 use crate::{
     auth::auth_models::{
         auth_state::{self, AuthState},
-        credential::LoginCredential,
+        credential::{Email, LoginCredential, RawEmail, RawLoginCredential},
         refresh_token::{REFRESH_TOKEN_KEY, RefreshToken},
         token::{ExpiredTokenAble, TokenAble, TokenError},
         verify::{VerifyKey, VerifyValue},
@@ -19,11 +19,16 @@ use crate::{
     },
 };
 use actix_session::{Session, SessionExt, SessionInsertError};
-use actix_web::{HttpRequest, http::StatusCode, post, web};
+use actix_web::{
+    HttpRequest,
+    http::StatusCode,
+    post,
+    web::{self, Form},
+};
 use web::Json;
 
 #[post("/login")]
-pub async fn login(req: HttpRequest, Json(credentials): Json<LoginCredential>) -> APIResponse {
+pub async fn login(req: HttpRequest, raw_credentials: Json<RawLoginCredential>) -> APIResponse {
     // --- Case 1 : User already connected ---
 
     match auth_state::try_extract_auth_state(&req).await? {
@@ -35,6 +40,8 @@ pub async fn login(req: HttpRequest, Json(credentials): Json<LoginCredential>) -
     }
 
     // --- Case 2 : User not connected, trying to login ---
+
+    let credentials = raw_credentials.into_inner().verify()?;
     let Some(user) = User::get_from_credential(&credentials).await? else {
         return JsonResponse::unauthorized().message(CREDENTIALS_INCORECT);
     };
@@ -56,7 +63,7 @@ fn map_session_insert_error(err: SessionInsertError) -> AppError {
 }
 
 #[post("/register")]
-pub async fn register(req: HttpRequest, Json(credentials): Json<LoginCredential>) -> APIResponse {
+pub async fn register(req: HttpRequest, raw_credentials: Json<RawLoginCredential>) -> APIResponse {
     // --- Case 1 : User already connected ---
 
     match auth_state::try_extract_auth_state(&req).await? {
@@ -66,8 +73,7 @@ pub async fn register(req: HttpRequest, Json(credentials): Json<LoginCredential>
         AuthState::NotVerified(_) => return JsonResponse::ok().message(USER_NOT_VERIFIED),
         AuthState::Guess => {}
     }
-
-    credentials.is_valide_credential()?;
+    let credentials = raw_credentials.into_inner().verify()?;
 
     let user_id = match User::create(&credentials).await {
         Err(AppError::Conflict(msg)) if msg == EMAIL_ALREADY_EXIST => {
@@ -86,7 +92,7 @@ pub async fn register(req: HttpRequest, Json(credentials): Json<LoginCredential>
     JsonResponse::ok().message(USER_NOT_VERIFIED)
 }
 
-async fn create_verification_token_and_send_mail(user_id: i32, email: &str) -> AppResult<()> {
+async fn create_verification_token_and_send_mail(user_id: i32, email: &Email) -> AppResult<()> {
     let key = VerifyKey::new();
     let value = VerifyValue::new(user_id);
 
@@ -94,13 +100,13 @@ async fn create_verification_token_and_send_mail(user_id: i32, email: &str) -> A
     send_verification_email(email, key.as_ref())?;
     Ok(())
 }
-pub fn send_verification_email(user_email: &str, token: &str) -> AppResult<()> {
+pub fn send_verification_email(user_email: &Email, token: &str) -> AppResult<()> {
     let verify_url = format!("https://localhost/api/auth/verify?token={}", token);
 
     let html_template = include_str!("../templates/verification_email.html");
     let html = html_template.replace("__VERIFY_URL__", &verify_url);
 
-    send_mail(user_email, "Vérifiez votre adresse email", html)?;
+    send_mail(user_email.as_ref(), "Vérifiez votre adresse email", html)?;
 
     Ok(())
 }
@@ -126,7 +132,7 @@ pub async fn verify(auth_state: AuthState, Query(verify_key): Query<VerifyKey>) 
 
     let verify_user_id: i32 = match VerifyValue::decode_expired(&raw_verify_value) {
         Ok(val) => val.get_user_id(),
-        Err(TokenError::ExpiredId(id)) => return handle_expired_link(id).await,
+        Err(TokenError::ExpiredId(user_id)) => return handle_expired_link(user_id).await,
         Err(c @ TokenError::EncodeError(_)) => return Err(c.into()),
         Err(_) => return Err(TokenError::Invalid.into()),
     };
@@ -152,7 +158,7 @@ async fn handle_expired_link(user_id: i32) -> APIResponse {
     };
     create_verification_token_and_send_mail(user_id, &user.email).await?;
 
-    return JsonResponse::unauthorized().message(TOKEN_EXPIRED);
+    return JsonResponse::invalid_token();
 }
 
 #[post("/refresh_token")]
@@ -168,4 +174,22 @@ pub async fn refresh_token(auth_state: AuthState) -> APIResponse {
 pub async fn logout(session: Session) -> APIResponse {
     let _ = session.remove(REFRESH_TOKEN_KEY);
     JsonResponse::ok().message(USER_LOGGED_OUT)
+}
+
+#[post("/forgot")]
+pub async fn forgot(req: HttpRequest, Form(raw_email): Form<RawEmail>) -> APIResponse {
+    let email = raw_email.verify()?;
+    let Some(user_id) = User::get_user_id_from_mail(&email).await? else {
+        return JsonResponse::ok().message(String::new());
+    };
+
+    todo!()
+}
+#[post("/reset/validate")]
+pub async fn change_password_validate() -> APIResponse {
+    todo!()
+}
+#[post("/reset")]
+pub async fn change_password() -> APIResponse {
+    todo!()
 }

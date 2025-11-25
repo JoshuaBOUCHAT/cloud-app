@@ -15,6 +15,7 @@ services:
 
     depends_on:
       - database
+      - redis
 
   swagger:
     image: swaggerapi/swagger-ui:latest
