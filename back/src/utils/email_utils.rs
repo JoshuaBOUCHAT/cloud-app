@@ -7,6 +7,7 @@ use lettre::{
     transport::smtp::authentication::Credentials,
 };
 
+use crate::auth::auth_models::credential::Email;
 use crate::errors::AppResult;
 
 pub static APP_MAIL_BOX: LazyLock<Mailbox> = LazyLock::new(|| {
@@ -31,11 +32,15 @@ pub static MAILER: LazyLock<SmtpTransport> = LazyLock::new(|| {
     mailer
 });
 
-pub fn send_mail(destination: &str, subject: &str, body: impl Into<String>) -> AppResult<()> {
-    println!("sending mail to {}", destination);
+pub fn send_mail(
+    destination: &Email,
+    subject: impl Into<String>,
+    body: impl Into<String>,
+) -> AppResult<()> {
+    println!("sending mail to {}", destination.as_ref());
     let msg = Message::builder()
         .from(APP_MAIL_BOX.clone())
-        .to(destination.parse().expect("Invalid email address"))
+        .to(destination.as_ref().parse().expect("Invalid email address"))
         .subject(subject)
         .header(ContentType::TEXT_HTML)
         .body(body.into())?;

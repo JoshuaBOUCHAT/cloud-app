@@ -81,10 +81,8 @@ impl From<jsonwebtoken::errors::Error> for AppError {
 impl From<TokenError> for AppError {
     fn from(value: TokenError) -> Self {
         match value {
-            TokenError::ExpiredId(_) => AppError::Unauthorized(TOKEN_EXPIRED.to_string()),
             TokenError::Expired => AppError::Unauthorized(TOKEN_EXPIRED.to_string()),
             TokenError::Invalid => AppError::Validation(TOKEN_INVALID.to_string()),
-            TokenError::Absent => AppError::Unauthorized(TOKEN_ABSENT.to_string()),
             TokenError::EncodeError(msg) => AppError::Internal(msg),
         }
     }

@@ -6,9 +6,7 @@ use crate::SECRET;
 #[derive(Debug)]
 pub enum TokenError {
     Expired,
-    ExpiredId(i32),
     Invalid,
-    Absent,
     EncodeError(String),
 }
 
@@ -59,10 +57,17 @@ pub trait TokenAble: Serialize + DeserializeOwned {
     }
 }
 
+#[derive(Debug)]
+pub enum ExpiredAbleTokenError {
+    ExpiredId(i32),
+    Invalid,
+    EncodeError(String),
+}
+
 pub trait ExpiredTokenAble: TokenAble {
     fn get_user_id(&self) -> i32;
 
-    fn decode_expired(raw_token: &str) -> Result<Self, TokenError> {
+    fn decode_expired(raw_token: &str) -> Result<Self, ExpiredAbleTokenError> {
         match Self::decode(raw_token) {
             Ok(decoded) => Ok(decoded),
             Err(TokenError::Expired) => {
@@ -74,10 +79,13 @@ pub trait ExpiredTokenAble: TokenAble {
                     &DecodingKey::from_secret(SECRET),
                     &validation_no_exp,
                 )
-                .map_err(|_| TokenError::Invalid)?;
-                Err(TokenError::ExpiredId(token_data.claims.get_user_id()))
+                .map_err(|_| ExpiredAbleTokenError::Invalid)?;
+                Err(ExpiredAbleTokenError::ExpiredId(
+                    token_data.claims.get_user_id(),
+                ))
             }
-            Err(err) => Err(err),
+            Err(TokenError::Invalid) => Err(ExpiredAbleTokenError::Invalid),
+            Err(TokenError::EncodeError(msg)) => Err(ExpiredAbleTokenError::EncodeError(msg)),
         }
     }
 }

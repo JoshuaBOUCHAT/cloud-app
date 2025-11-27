@@ -1,30 +1,50 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    auth::auth_models::token::{ExpiredTokenAble, TokenAble},
+    auth::auth_models::token::{ExpiredAbleTokenError, ExpiredTokenAble, TokenAble, TokenError},
     errors::AppResult,
     shared::get_now_unix,
-    utils::redis_utils::redis_set,
+    utils::redis_utils::{redis_get, redis_set},
 };
 
 #[derive(Deserialize, Serialize)]
-pub struct VerifyKey {
-    token: String,
+pub struct CacheKey {
+    key: String,
 }
-impl VerifyKey {
+
+pub enum ResetResult {
+    Ok(i32),
+    Expired(i32),
+    Invalide,
+}
+
+impl CacheKey {
     pub fn new() -> Self {
         Self {
-            token: uuid::Uuid::new_v4().to_string(),
+            key: uuid::Uuid::new_v4().to_string(),
         }
     }
     pub async fn send_to_cache(&self, verify_value: &VerifyValue) -> AppResult<()> {
-        redis_set(&self.token, &verify_value.encode()?).await?;
+        redis_set(&self.key, &verify_value.encode()?).await?;
         Ok(())
     }
+    pub async fn get_from_cache(&self) -> AppResult<ResetResult> {
+        let Some(raw_token) = redis_get::<String, String>(&self.key).await? else {
+            return Ok(ResetResult::Invalide);
+        };
+        match VerifyValue::decode_expired(&raw_token) {
+            Ok(val) => Ok(ResetResult::Ok(val.get_user_id())),
+            Err(ExpiredAbleTokenError::EncodeError(m)) => Err(TokenError::EncodeError(m))?,
+            Err(ExpiredAbleTokenError::Invalid) => Ok(ResetResult::Invalide),
+            Err(ExpiredAbleTokenError::ExpiredId(id)) => Ok(ResetResult::Expired(id)),
+        }
+    }
 }
-impl AsRef<str> for VerifyKey {
+impl AsRef<str> for CacheKey {
     fn as_ref(&self) -> &str {
-        &self.token
+        &self.key
     }
 }
 
@@ -41,9 +61,9 @@ impl ExpiredTokenAble for VerifyValue {
 }
 
 impl VerifyValue {
-    pub fn new(user_id: i32) -> Self {
+    pub fn new(user_id: i32, ttl: Duration) -> Self {
         const MINUTE_SECS: u64 = 60;
-        let exp = get_now_unix() + 15 * MINUTE_SECS;
+        let exp = get_now_unix() + ttl.as_secs();
         Self { user_id, exp }
     }
     pub fn get_user_id(&self) -> i32 {

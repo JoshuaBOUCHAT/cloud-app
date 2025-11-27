@@ -1,14 +1,9 @@
-use std::str::FromStr;
-
 use actix_web::{FromRequest, HttpRequest};
 use futures_util::future::ready;
-use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    SECRET,
-    auth::auth_models::token::{Token, TokenAble, TokenError},
-    constants::messages::TOKEN_INVALID,
+    auth::auth_models::token::{TokenAble, TokenError},
     errors::{AppError, AppResult},
     shared::get_now_unix,
 };
@@ -55,7 +50,7 @@ pub fn try_extract_refresh_token_from_session(session: &Session) -> AppResult<Re
     let maybe_unchecked_token_str: Option<String> = session
         .get::<String>(REFRESH_TOKEN_KEY)
         .map_err(handle_session_error)?;
-    let unchecked_token_str = maybe_unchecked_token_str.ok_or(TokenError::Absent)?;
+    let unchecked_token_str = maybe_unchecked_token_str.ok_or(TokenError::Invalid)?;
 
     //Parising also validate the token
     let refresh_token = RefreshToken::decode(&unchecked_token_str)?;

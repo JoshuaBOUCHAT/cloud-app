@@ -26,6 +26,7 @@ pub mod shared;
 pub mod utils;
 
 pub const SECRET: &[u8; 44] = b"laOOVyHM6s3IcgDAty1O7AXAdRZR6eaaQi65v3qhVRg=";
+pub const APP_URL: &str = "https://localhost";
 
 #[derive(Serialize)]
 struct PingResponse {
@@ -46,7 +47,6 @@ async fn main() -> std::io::Result<()> {
         .expect("Impossible de lister les tables");
     println!("initialising redis cell");
     init_redis_pool().await;
-    REDIS_POOL.wait();
     println!("initialising successe");
 
     println!("Now listing tables");
@@ -62,7 +62,7 @@ async fn main() -> std::io::Result<()> {
         let decoded_claim = Claims::decode(ser.as_ref()).expect("Deserialisation should not fail");
         println!(
             "Decoded as json: {}",
-            serde_json::to_string(&claim).unwrap()
+            serde_json::to_string(&decoded_claim).unwrap()
         );
     }
 
