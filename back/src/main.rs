@@ -10,8 +10,8 @@ use std::sync::LazyLock;
 
 use crate::{
     auth::{
+        auth_controller::{login, logout, refresh_token, register, verify},
         auth_models::{claims::Claims, token::TokenAble},
-        auth_service::{login, logout, refresh_token, register, verify},
     },
     services::openapi_service::openapi_yaml,
     utils::redis_utils::{REDIS_POOL, init_redis_pool},

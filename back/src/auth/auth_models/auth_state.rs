@@ -4,8 +4,8 @@ use actix_web::{FromRequest, HttpRequest};
 
 use crate::{
     auth::auth_models::{
-        claims::{Claims, try_extract_claims},
-        refresh_token::{REFRESH_TOKEN_KEY, RefreshToken, handle_session_error},
+        claims::{self, Claims, try_extract_claims},
+        refresh_token::{REFRESH_TOKEN_KEY, RefreshClaim, handle_session_error},
         token::TokenAble,
     },
     errors::{AppError, AppResult},
@@ -44,7 +44,7 @@ pub async fn try_extract_auth_state(req: &HttpRequest) -> AppResult<AuthState> {
     let Some(unchecked_token_str) = maybe_unchecked_token_str else {
         return Ok(AuthState::Guess);
     };
-    let Ok(refresh_token) = RefreshToken::decode(&unchecked_token_str) else {
+    let Ok(refresh_token) = RefreshClaim::decode(&unchecked_token_str) else {
         return Ok(AuthState::Guess);
     };
     //User maybe already verified but not having token

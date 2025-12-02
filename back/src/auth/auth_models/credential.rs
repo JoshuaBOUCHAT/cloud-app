@@ -36,6 +36,9 @@ impl LoginCredential {
     pub fn get_password(&self) -> &str {
         &self.password
     }
+    pub fn into_email(self) -> Email {
+        self.email
+    }
 }
 
 #[derive(Deserialize)]

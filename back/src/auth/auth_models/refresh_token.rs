@@ -10,11 +10,11 @@ use crate::{
 pub const REFRESH_TOKEN_KEY: &str = "refresh_token";
 
 #[derive(Serialize, Deserialize)]
-pub struct RefreshToken {
+pub struct RefreshClaim {
     user_id: i32,
     exp: u64,
 }
-impl RefreshToken {
+impl RefreshClaim {
     pub fn new(user_id: i32) -> Self {
         const DAY_SECS: u64 = 60 * 60 * 24;
         let exp = get_now_unix() + 7 * DAY_SECS;
@@ -24,11 +24,11 @@ impl RefreshToken {
         self.user_id
     }
 }
-impl TokenAble for RefreshToken {}
+impl TokenAble for RefreshClaim {}
 
 /// error 500 on session error should not happend
 /// Forbiden on
-impl FromRequest for RefreshToken {
+impl FromRequest for RefreshClaim {
     type Error = AppError;
     type Future = futures_util::future::Ready<Result<Self, Self::Error>>;
 
@@ -42,18 +42,18 @@ impl FromRequest for RefreshToken {
 use actix_session::{Session, SessionExt, SessionGetError};
 
 #[inline(always)]
-pub fn try_extract_refresh_token_from_req(req: &HttpRequest) -> AppResult<RefreshToken> {
+pub fn try_extract_refresh_token_from_req(req: &HttpRequest) -> AppResult<RefreshClaim> {
     try_extract_refresh_token_from_session(&req.get_session())
 }
 
-pub fn try_extract_refresh_token_from_session(session: &Session) -> AppResult<RefreshToken> {
+pub fn try_extract_refresh_token_from_session(session: &Session) -> AppResult<RefreshClaim> {
     let maybe_unchecked_token_str: Option<String> = session
         .get::<String>(REFRESH_TOKEN_KEY)
         .map_err(handle_session_error)?;
     let unchecked_token_str = maybe_unchecked_token_str.ok_or(TokenError::Invalid)?;
 
     //Parising also validate the token
-    let refresh_token = RefreshToken::decode(&unchecked_token_str)?;
+    let refresh_token = RefreshClaim::decode(&unchecked_token_str)?;
 
     Ok(refresh_token)
 }

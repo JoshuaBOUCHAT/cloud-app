@@ -160,7 +160,7 @@ impl User {
         }
     }
     ///This function do not check if the for password so the id should not be use where security is needed
-    pub async fn get_user_id_from_mail(email: &Email) -> AppResult<Option<i32>> {
+    pub async fn get_user_id_from_email(email: &Email) -> AppResult<Option<i32>> {
         let maybe_user_id = query_scalar!(
             r#"SELECT id FROM users WHERE email=? LIMIT 1"#,
             email.as_ref()
@@ -168,6 +168,23 @@ impl User {
         .fetch_optional(&*DB_POOL)
         .await?;
         Ok(maybe_user_id)
+    }
+    ///This function assume that caller verified user_id and password validity
+    pub async fn change_password(user_id: i32, password: &str) -> AppResult<()> {
+        let hashed_password = hash_password(password);
+
+        query!(
+            r#"
+            UPDATE users
+            SET password = ?
+            WHERE id = ?
+            "#,
+            hashed_password,
+            user_id
+        )
+        .execute(&*DB_POOL)
+        .await?;
+        Ok(())
     }
 
     pub fn is_admin(&self) -> bool {

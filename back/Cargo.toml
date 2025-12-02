@@ -7,23 +7,23 @@ edition = "2024"
 jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
 actix-rt = "2.11.0"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
-actix-web = { version = "4.11.0", features = ["rustls"] }
+actix-web = { version = "4.12.1", features = ["rustls"] }
 argon2 = "0.5.3"
 async-trait = "0.1.89"
-bb8 = "0.9.0"
+bb8 = "0.9.1"
 bb8-redis = "0.24.0"
 chrono = { version = "0.4.42", features = ["serde"] }
-fancy-regex = "0.16.1"
+fancy-regex = "0.16.2"
 futures-util = "0.3.31"
-lettre = { version = "0.11.18", features = [
+lettre = { version = "0.11.19", features = [
     "ring",
     "rustls",
     "rustls-platform-verifier",
 ] }
 password-hash = "0.5.0"
-redis = { version = "0.32.5", features = ["aio"] }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.143"
+redis = { version = "0.32.7", features = ["aio"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 sqlx = { version = "0.8.6", features = [
     "mysql",
     "runtime-tokio-rustls",
@@ -31,8 +31,8 @@ sqlx = { version = "0.8.6", features = [
     "chrono",
     "time",
 ] }
-thiserror = "2.0.16"
-time = { version = "0.3.43", features = ["serde"] }
-tokio = "1.47.1"
+thiserror = "2.0.17"
+time = { version = "0.3.44", features = ["serde"] }
+tokio = "1.48.0"
 
 uuid = { version = "1.18.1", features = ["v4"] }
