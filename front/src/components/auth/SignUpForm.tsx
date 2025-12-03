@@ -4,10 +4,43 @@ import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
+import { api } from "../../services/AuthServices"
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
+  // 👉 handleChange ajouté (RIEN supprimé)
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!isChecked) {
+      alert("Vous devez accepter les conditions.");
+      return;
+    }
+
+    try {
+      const data = await api.post("/auth/register", formData);
+      console.log("SUCCESS:", data);
+      alert("Compte créé !");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'inscription");
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1 w-full overflow-y-auto lg:w-1/2 no-scrollbar">
       <div className="w-full max-w-md mx-auto mb-5 sm:pt-10">
@@ -82,35 +115,12 @@ export default function SignUpForm() {
                 </span>
               </div>
             </div>
-            <form>
+
+            {/* 👉 AJOUT : onSubmit et onChange dans le form et inputs */}
+            <form onSubmit={handleSubmit}>
               <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* <!-- First Name --> */}
-                  <div className="sm:col-span-1">
-                    <Label>
-                      First Name<span className="text-error-500">*</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      id="fname"
-                      name="fname"
-                      placeholder="Enter your first name"
-                    />
-                  </div>
-                  {/* <!-- Last Name --> */}
-                  <div className="sm:col-span-1">
-                    <Label>
-                      Last Name<span className="text-error-500">*</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      id="lname"
-                      name="lname"
-                      placeholder="Enter your last name"
-                    />
-                  </div>
-                </div>
-                {/* <!-- Email --> */}
+
+                {/* Email */}
                 <div>
                   <Label>
                     Email<span className="text-error-500">*</span>
@@ -120,9 +130,12 @@ export default function SignUpForm() {
                     id="email"
                     name="email"
                     placeholder="Enter your email"
+                    value={formData.email}
+                    onChange={handleChange}
                   />
                 </div>
-                {/* <!-- Password --> */}
+
+                {/* Password */}
                 <div>
                   <Label>
                     Password<span className="text-error-500">*</span>
@@ -131,6 +144,9 @@ export default function SignUpForm() {
                     <Input
                       placeholder="Enter your password"
                       type={showPassword ? "text" : "password"}
+                      name="password"                 /* AJOUT */
+                      value={formData.password}        /* AJOUT */
+                      onChange={handleChange}          /* AJOUT */
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -144,7 +160,8 @@ export default function SignUpForm() {
                     </span>
                   </div>
                 </div>
-                {/* <!-- Checkbox --> */}
+
+                {/* Checkbox (inchangé) */}
                 <div className="flex items-center gap-3">
                   <Checkbox
                     className="w-5 h-5"
@@ -162,12 +179,17 @@ export default function SignUpForm() {
                     </span>
                   </p>
                 </div>
-                {/* <!-- Button --> */}
+
+                {/* Submit */}
                 <div>
-                  <button className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600">
+                  <button
+                    type="submit"  /* AJOUT essentiel */
+                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
+                  >
                     Sign Up
                   </button>
                 </div>
+
               </div>
             </form>
 
@@ -182,6 +204,7 @@ export default function SignUpForm() {
                 </Link>
               </p>
             </div>
+
           </div>
         </div>
       </div>

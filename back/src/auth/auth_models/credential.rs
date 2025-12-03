@@ -42,6 +42,7 @@ impl LoginCredential {
 }
 
 #[derive(Deserialize)]
+#[serde(transparent)]
 pub struct RawEmail {
     raw_mail: String,
 }

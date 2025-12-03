@@ -66,7 +66,7 @@ pub async fn create_verification_token_and_send_mail(user_id: i32, email: &Email
     send_verification_email(email, &key)
 }
 pub fn send_verification_email(user_email: &Email, key: &CacheKey) -> AppResult<()> {
-    let verify_url = format!("https://localhost/api/auth/verify?token={}", key.as_ref());
+    let verify_url = format!("{}/auth/verify?token={}", APP_URL, key.as_ref());
 
     let html_template = include_str!("../templates/verification_email.html");
     let html = html_template.replace("__VERIFY_URL__", &verify_url);

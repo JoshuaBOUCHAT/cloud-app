@@ -11,24 +11,11 @@ pub enum TokenError {
 }
 
 #[repr(transparent)]
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(transparent)]
 
 pub struct Token {
     token_str: String,
-}
-
-impl Serialize for Token {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // token_str contient déjà du JSON, on le parse
-        let raw: Value =
-            serde_json::from_str(&self.token_str).map_err(serde::ser::Error::custom)?;
-
-        // on renvoie le JSON tel quel
-        raw.serialize(serializer)
-    }
 }
 
 impl AsRef<str> for Token {

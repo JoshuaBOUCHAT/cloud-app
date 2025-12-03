@@ -18,6 +18,7 @@ import Blank from "./pages/Blank";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
+import VerifyPage from "./pages/AuthPages/Verify";
 
 export default function App() {
   return (
@@ -59,6 +60,8 @@ export default function App() {
 
           {/* Fallback Route */}
           <Route path="*" element={<NotFound />} />
+
+          <Route path="/TailAdmin/verify" element={<VerifyPage />} />
         </Routes>
       </Router>
     </>
