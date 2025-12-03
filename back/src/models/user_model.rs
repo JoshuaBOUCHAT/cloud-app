@@ -47,7 +47,7 @@ fn verify_password(password: &str, hash: &str) -> bool {
 }
 
 impl User {
-    pub async fn get(id: i32) -> AppResult<Option<Self>> {
+    pub async fn try_get(id: i32) -> AppResult<Option<Self>> {
         if let Some(user) = redis_get(&id).await? {
             return Ok(Some(user));
         }
@@ -61,6 +61,14 @@ impl User {
 
         Ok(maybe_user)
     }
+    pub async fn get(id: i32) -> AppResult<Self> {
+        Self::try_get(id)
+            .await?
+            .ok_or(AppError::Internal(String::from(
+                "Request unfailable user but it failed",
+            )))
+    }
+
     pub async fn create(credential: &LoginCredential) -> AppResult<i32> {
         let hashed_password = hash_password(credential.get_password());
 
@@ -74,7 +82,7 @@ impl User {
         let err = match db_response {
             Ok(response) => {
                 let user_id = response.last_insert_id() as i32;
-                let maybe_user = User::get(user_id).await?;
+                let maybe_user = User::try_get(user_id).await?;
                 if let Some(user) = maybe_user {
                     let _ = redis_set_ex(&format!("user:{}", user.id), &user, 3600).await;
                 }
@@ -132,11 +140,11 @@ impl User {
         Ok(())
     }
     pub async fn is_valide_user(id: i32) -> AppResult<bool> {
-        Ok(Self::get(id).await?.is_some_and(|u| u.is_verified()))
+        Ok(Self::try_get(id).await?.is_some_and(|u| u.is_verified()))
     }
     ///Only return a token if the user have been verified
     pub async fn get_token(id: i32) -> AppResult<Option<Token>> {
-        let maybe_user = Self::get(id).await?;
+        let maybe_user = Self::try_get(id).await?;
         let Some(user) = maybe_user else {
             return Err(AppError::Internal(USER_NOT_FOUND.to_string()));
         };
@@ -149,7 +157,7 @@ impl User {
         }
     }
     pub async fn get_claim(id: i32) -> AppResult<Option<Claims>> {
-        let Some(user) = Self::get(id).await? else {
+        let Some(user) = Self::try_get(id).await? else {
             return Err(AppError::Internal(USER_NOT_FOUND.to_string()));
         };
 
@@ -200,7 +208,7 @@ use async_trait::async_trait;
 #[async_trait]
 impl TryFromClaim for User {
     async fn try_from_claim(claims: &Claims) -> Result<Self, actix_web::Error> {
-        let user = Self::get(claims.user_id)
+        let user = Self::try_get(claims.user_id)
             .await?
             .ok_or_else(|| AppError::Internal(USER_NOT_FOUND.to_string()))?;
         Ok(user)

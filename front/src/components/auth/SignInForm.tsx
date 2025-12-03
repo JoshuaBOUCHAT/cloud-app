@@ -3,12 +3,44 @@ import { Link } from "react-router";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
-import Checkbox from "../form/input/Checkbox";
-import Button from "../ui/button/Button";
+import { api } from "../../services/AuthServices";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
+
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
+  // 👉 handleChange ajouté (RIEN supprimé)
+  const handleChange = (e: any) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+
+
+    try {
+      const data = await api.post("/auth/login", formData);
+      console.log("SUCCESS:", data);
+      alert("Compte créé !");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'inscription");
+    }
+  };
+
+
+
+
+
+
   return (
     <div className="flex flex-col flex-1">
       <div className="w-full max-w-md pt-10 mx-auto">
@@ -83,22 +115,36 @@ export default function SignInForm() {
                 </span>
               </div>
             </div>
-            <form>
-              <div className="space-y-6">
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-5">
+
+                {/* Email */}
                 <div>
                   <Label>
-                    Email <span className="text-error-500">*</span>{" "}
+                    Email<span className="text-error-500">*</span>
                   </Label>
-                  <Input placeholder="info@gmail.com" />
+                  <Input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="Enter your email"
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
                 </div>
+
+                {/* Password */}
                 <div>
                   <Label>
-                    Password <span className="text-error-500">*</span>{" "}
+                    Password<span className="text-error-500">*</span>
                   </Label>
                   <div className="relative">
                     <Input
-                      type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
+                      type={showPassword ? "text" : "password"}
+                      name="password"                 /* AJOUT */
+                      value={formData.password}        /* AJOUT */
+                      onChange={handleChange}          /* AJOUT */
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -112,26 +158,18 @@ export default function SignInForm() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Checkbox checked={isChecked} onChange={setIsChecked} />
-                    <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
-                      Keep me logged in
-                    </span>
-                  </div>
-                  <Link
-                    to="#!"
-                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
+
+                {/* Submit */}
                 <div>
-                  <Button className="w-full" size="sm">
-                    Sign in
-                  </Button>
+                  <button
+                    type="submit"  /* AJOUT essentiel */
+                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
+                  >
+                    Sign Up
+                  </button>
                 </div>
               </div>
+
             </form>
 
             <div className="mt-5">
@@ -141,7 +179,7 @@ export default function SignInForm() {
                   to="/TailAdmin/signup"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                 >
-                  Sign Up
+                  Sign In
                 </Link>
               </p>
             </div>

@@ -16,14 +16,14 @@ export default function SignUpForm() {
   });
 
   // 👉 handleChange ajouté (RIEN supprimé)
-  const handleChange = (e) => {
+  const handleChange = (e: any) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
 
     if (!isChecked) {

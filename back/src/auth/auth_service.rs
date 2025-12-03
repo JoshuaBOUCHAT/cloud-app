@@ -58,14 +58,19 @@ pub async fn register_service(
         credentials.into_email(),
     ));
 }
+pub async fn resend_verification_mail(user_id: i32) -> AppResult<()> {
+    let email = User::get(user_id).await?.email;
+    create_verification_token_and_send_mail(user_id, &email).await
+}
+
 pub async fn create_verification_token_and_send_mail(user_id: i32, email: &Email) -> AppResult<()> {
     let key = CacheKey::new();
     let value = InternalUserClaim::new(user_id, EMAIL_LINK_VALDITY_DURATION);
 
     key.send_to_cache(&value).await?;
-    send_verification_email(email, &key)
+    send_verification_email_with_key(email, &key)
 }
-pub fn send_verification_email(user_email: &Email, key: &CacheKey) -> AppResult<()> {
+fn send_verification_email_with_key(user_email: &Email, key: &CacheKey) -> AppResult<()> {
     let verify_url = format!("{}/auth/verify?token={}", APP_URL, key.as_ref());
 
     let html_template = include_str!("../templates/verification_email.html");
@@ -119,7 +124,7 @@ pub async fn verify_service(
     Ok(VerifyResult::Token(token))
 }
 async fn handle_expired_verify_link(user_id: i32) -> AppResult<()> {
-    let Some(user) = User::get(user_id).await? else {
+    let Some(user) = User::try_get(user_id).await? else {
         let err_message = format!("Verification token exists for non-existing user_id={user_id}");
         return Err(AppError::Internal(err_message));
     };
@@ -219,7 +224,7 @@ async fn ensure_expiration(user_id: i32, key: &CacheKey) -> AppResult<()> {
     key.send_to_cache(&reset_claim).await
 }
 async fn regenerate_reset_token(user_id: i32) -> AppResult<()> {
-    let maybe_user = User::get(user_id).await?;
+    let maybe_user = User::try_get(user_id).await?;
     if let Some(user) = maybe_user {
         create_reset_token_and_send_email(user_id, &user.email).await
     } else {
