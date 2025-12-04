@@ -14,6 +14,7 @@ pub struct CacheKey {
     key: String,
 }
 
+#[derive(Debug)]
 pub enum ResetResult {
     Ok(i32),
     Expired(i32),

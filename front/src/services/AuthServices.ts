@@ -69,7 +69,8 @@ export const api = {
       if (data.type === "Token") {
         // ex: USER_NOT_LOGIN
         localStorage.setItem("access_token", data.data);
-        return ThreeColumnImageGrid;
+        console.log("token stored");
+        return true;
       }
 
   

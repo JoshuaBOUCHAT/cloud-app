@@ -1,7 +1,3 @@
-use std::time::Duration;
-
-use actix_web::web::get;
-
 use crate::APP_URL;
 use crate::auth::auth_models::cache_key::ResetResult;
 use crate::auth::auth_models::credential::RawEmail;
@@ -23,6 +19,7 @@ use crate::{
         redis_utils::{redis_del, redis_get},
     },
 };
+use std::time::Duration;
 const EMAIL_LINK_VALDITY_DURATION: Duration = Duration::from_secs(30 * 60);
 
 pub enum RegisterResult {
@@ -65,9 +62,12 @@ pub async fn resend_verification_mail(user_id: i32) -> AppResult<()> {
 
 pub async fn create_verification_token_and_send_mail(user_id: i32, email: &Email) -> AppResult<()> {
     let key = CacheKey::new();
+    println!("key:{}", key.as_ref());
     let value = InternalUserClaim::new(user_id, EMAIL_LINK_VALDITY_DURATION);
 
     key.send_to_cache(&value).await?;
+
+    dbg!(key.get_from_cache().await.unwrap());
     send_verification_email_with_key(email, &key)
 }
 fn send_verification_email_with_key(user_email: &Email, key: &CacheKey) -> AppResult<()> {
@@ -91,21 +91,17 @@ pub async fn verify_service(
 ) -> AppResult<VerifyResult> {
     // --- Case 1 : User already connected ---
 
-    let Some(raw_internal_user_token): Option<String> = redis_get(&verify_key).await? else {
-        return Ok(VerifyResult::Invalid);
-    };
-    // Token used so no longer usefull
-    redis_del(&verify_key).await?;
-    let decode_result = decode_internal(&raw_internal_user_token).await?;
-
-    let verified_user_id: i32 = match decode_result {
-        DecodeResult::Valid(user_id) => {
-            User::verify_user(user_id).await?;
-            user_id
-        }
-        DecodeResult::Expired(user_id) => {
+    let verified_user_id = match verify_key.get_from_cache().await? {
+        ResetResult::Invalide => return Ok(VerifyResult::Invalid),
+        ResetResult::Expired(user_id) => {
+            verify_key.invalidate().await?;
             handle_expired_verify_link(user_id).await?;
             return Ok(VerifyResult::Expired);
+        }
+        ResetResult::Ok(user_id) => {
+            verify_key.invalidate().await?;
+            User::verify_user(user_id).await?;
+            user_id
         }
     };
 

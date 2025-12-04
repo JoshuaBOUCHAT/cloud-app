@@ -165,7 +165,7 @@ export default function SignInForm() {
                     type="submit"  /* AJOUT essentiel */
                     className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
                   >
-                    Sign Up
+                    Sign In
                   </button>
                 </div>
               </div>
@@ -179,7 +179,7 @@ export default function SignInForm() {
                   to="/TailAdmin/signup"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                 >
-                  Sign In
+                  Sign Up
                 </Link>
               </p>
             </div>

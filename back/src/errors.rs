@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{
     auth::auth_models::token::TokenError,
-    constants::messages::{SERIALIZATION_FAILED, TOKEN_ABSENT, TOKEN_EXPIRED, TOKEN_INVALID},
+    constants::messages::{SERIALIZATION_FAILED, TOKEN_EXPIRED, TOKEN_INVALID},
 };
 
 pub type AppResult<T> = Result<T, AppError>;

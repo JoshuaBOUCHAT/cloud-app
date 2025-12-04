@@ -1,6 +1,5 @@
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use serde::{Deserialize, Serialize, Serializer, de::DeserializeOwned};
-use serde_json::Value;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::SECRET;
 #[derive(Debug)]

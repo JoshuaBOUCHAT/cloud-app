@@ -3,7 +3,7 @@ use crate::auth::auth_models::cache_key::CacheKey;
 use crate::auth::auth_service::{
     ChangePasswordResult, LoginResult, RegisterResult, ValidateResult, VerifyResult,
     change_password_service, create_verification_token_and_send_mail, forgot_service,
-    login_service, register_service, validate_service, verify_service,
+    login_service, register_service, resend_verification_mail, validate_service, verify_service,
 };
 use crate::constants::messages::{TOKEN_EXPIRED, TOKEN_INVALID};
 use crate::{
@@ -94,11 +94,14 @@ pub async fn verify(auth_state: AuthState, Json(verify_key): Json<VerificationKe
     }
 }
 
-#[post("/verify/send")]
+#[post("/verify/resend")]
 pub async fn send_verification_email(auth_state: AuthState) -> APIResponse {
     match auth_state {
         AuthState::Connected(_) => JsonResponse::status(StatusCode::BAD_REQUEST).empty(),
-        AuthState::NotVerified(user_id) => {}
+        AuthState::NotVerified(user_id) => {
+            resend_verification_mail(user_id).await?;
+            JsonResponse::ok().empty()
+        }
         AuthState::Guess => JsonResponse::unauthorized().message(USER_NOT_LOGIN),
     }
 }

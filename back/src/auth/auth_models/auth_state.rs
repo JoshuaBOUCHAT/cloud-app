@@ -4,7 +4,7 @@ use actix_web::{FromRequest, HttpRequest};
 
 use crate::{
     auth::auth_models::{
-        claims::{self, Claims, try_extract_claims},
+        claims::{Claims, try_extract_claims},
         refresh_token::{REFRESH_TOKEN_KEY, RefreshClaim, handle_session_error},
         token::TokenAble,
     },

@@ -32,7 +32,7 @@ export default function SignUpForm() {
     }
 
     try {
-      const data = await api.post("/auth/register", formData);
+      const data = await api.post("/auth  /register", formData);
       console.log("SUCCESS:", data);
       alert("Compte créé !");
     } catch (err) {

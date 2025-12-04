@@ -2,7 +2,7 @@ use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 use actix_web::{
     App, HttpResponse, HttpServer, Responder,
     cookie::Key,
-    web::{self, get},
+    web::{self, get, service},
 };
 use serde::Serialize;
 use sqlx::{MySql, Pool, mysql::MySqlPoolOptions};
@@ -10,11 +10,13 @@ use std::sync::LazyLock;
 
 use crate::{
     auth::{
-        auth_controller::{login, logout, refresh_token, register, verify},
+        auth_controller::{
+            login, logout, refresh_token, register, send_verification_email, verify,
+        },
         auth_models::{claims::Claims, token::TokenAble},
     },
     services::openapi_service::openapi_yaml,
-    utils::redis_utils::{REDIS_POOL, init_redis_pool},
+    utils::redis_utils::init_redis_pool,
 };
 
 pub mod auth;
@@ -90,7 +92,8 @@ async fn main() -> std::io::Result<()> {
                     .service(register)
                     .service(verify)
                     .service(refresh_token)
-                    .service(logout),
+                    .service(logout)
+                    .service(send_verification_email),
             )
             .service(openapi_yaml)
             .service(web::scope("/public").route("/ping", get().to(handle_ping)))

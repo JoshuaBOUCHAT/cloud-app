@@ -3,10 +3,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    auth::auth_models::token::{ExpiredAbleTokenError, ExpiredTokenAble, TokenAble, TokenError},
-    errors::AppResult,
+    auth::auth_models::token::{ExpiredTokenAble, TokenAble},
     shared::get_now_unix,
-    utils::redis_utils::{redis_get, redis_set},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -23,7 +21,6 @@ impl ExpiredTokenAble for InternalUserClaim {
 
 impl InternalUserClaim {
     pub fn new(user_id: i32, ttl: Duration) -> Self {
-        const MINUTE_SECS: u64 = 60;
         let exp = get_now_unix() + ttl.as_secs();
         Self { user_id, exp }
     }
